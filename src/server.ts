@@ -1,4 +1,4 @@
-import { app } from './app'
+import  app  from './app'
 import { closeMongoConnection, connectMongo } from './config/mongodb'
 import { env } from './config/env'
 
@@ -15,9 +15,11 @@ async function startServer(): Promise<void> {
     console.warn('MONGODB_URI not configured. API started without database connection.')
   }
 
-  const server = app.listen(env.PORT, () => {
-    console.log(`API listening on http://localhost:${env.PORT}`)
-  })
+  const PORT = env.PORT || process.env.PORT || 3000;
+
+  const server = app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}/api/chat`);
+  });
 
   const gracefulShutdown = async () => {
     await closeMongoConnection()
