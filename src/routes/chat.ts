@@ -71,5 +71,3 @@ Devuelve JSON válido con:
 });
 
 export default router;
-
-

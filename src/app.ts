@@ -4,7 +4,8 @@ import { testRouter } from './routes/test.route'
 import chatRoutes from './routes/chat'
 import imagesRoutes from "./routes/images"
 
-export const app = express()
+const app = express()
+export default app;
 
 app.use(cors())
 app.use(express.json())
