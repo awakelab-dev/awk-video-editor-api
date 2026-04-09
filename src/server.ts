@@ -1,5 +1,7 @@
 import  app  from './app'
 import { closeMongoConnection, connectMongo } from './config/mongodb'
+import dotenv from "dotenv";
+dotenv.config();
 import { env } from './config/env'
 
 async function startServer(): Promise<void> {
@@ -18,7 +20,7 @@ async function startServer(): Promise<void> {
   const PORT = env.PORT || process.env.PORT || 3000;
 
   const server = app.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}/api/chat`);
+    console.log(`Servidor corriendo en http://localhost:${PORT}/api/v1/projects/123/elements`);
   });
 
   const gracefulShutdown = async () => {
