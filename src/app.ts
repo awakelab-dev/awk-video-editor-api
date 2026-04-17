@@ -1,16 +1,17 @@
 import cors from 'cors'
 import express from 'express'
 import { testRouter } from './routes/test.route'
-import chatRoutes from './routes/chat'
-import imagesRoutes from "./routes/images"
+import editorStateRoutes from './routes/editorState'
+import projectSnapshotRoutes from './routes/projectSnapshot'
 
 const app = express()
-export default app;
+export default app
 
 app.use(cors())
 app.use(express.json())
-app.use("/api", chatRoutes);
-app.use("/api", imagesRoutes)
+
+app.use('/api/v1/projects/:projectId/editor-state', editorStateRoutes)
+app.use('/api/v1/projects/:projectId/snapshot', projectSnapshotRoutes)
 
 app.get('/health', (_request, response) => {
   response.status(200).json({
