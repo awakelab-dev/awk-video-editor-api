@@ -18,8 +18,6 @@ export function getDb(): Db {
   return database;
 }
 
-export const connectToMongo = connectDB;
-
 export async function closeMongo(): Promise<void> {
   await closeMongoConnection();
 }
