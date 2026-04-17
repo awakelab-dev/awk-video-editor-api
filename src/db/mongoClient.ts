@@ -1,31 +1,45 @@
-import { MongoClient, Db } from "mongodb";
 import dotenv from "dotenv";
+import { MongoClient, Db } from "mongodb";
 
 dotenv.config();
 
-const uri = process.env.MONGO_URI;
+let client: MongoClient | null = null;
+let db: Db | null = null;
 
-if (!uri) {
-  throw new Error("MONGO_URI is not defined");
-}
+export async function connectDB(): Promise<Db> {
+  const uri = process.env.MONGO_URI;
+  const dbName = process.env.MONGO_DB;
 
-const client = new MongoClient(uri);
+  if (!uri) {
+    throw new Error("MONGO_URI is not defined");
+  }
 
-let db: Db;
+  if (!db) {
+    client = new MongoClient(uri);
+    await client.connect();
+    db = dbName ? client.db(dbName) : client.db();
+    console.log("Mongo connected");
+  }
 
-export async function connectToMongo(): Promise<void> {
-  await client.connect();
-  db = client.db(); // usa DB del URI
-  console.log("✅ Mongo connected");
+  return db;
 }
 
 export function getDb(): Db {
   if (!db) {
-    throw new Error("Database not initialized");
+    throw new Error("DB not initialized");
   }
   return db;
 }
 
+export const connectToMongo = connectDB;
+
 export async function closeMongo(): Promise<void> {
+  if (!client) {
+    db = null;
+    return;
+  }
+
   await client.close();
+  client = null;
+  db = null;
 }

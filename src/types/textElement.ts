@@ -1,16 +1,29 @@
 import { ObjectId } from "mongodb";
 
-export interface FrontendTextElementInput {
+export type ElementType = "text" | "video" | "image" | "audio" | "shape";
+
+export interface BaseElement {
   id: string;
-  type: "text";
+  type: ElementType;
   name: string;
   startTime: number;
   duration: number;
+  opacity: number;
+}
+
+export interface PositionedElement extends BaseElement {
   x: number;
   y: number;
+}
+
+export interface FramedElement extends PositionedElement {
   width: number;
   height: number;
   rotation: number;
+}
+
+export interface TextElement extends FramedElement {
+  type: "text";
   text: string;
   fontFamily: string;
   fontSize: number;
@@ -20,8 +33,47 @@ export interface FrontendTextElementInput {
   lineHeight: number;
   letterSpacing: number;
   textAlign: string;
-  trackId: string;
 }
+
+export interface VideoElement extends FramedElement {
+  type: "video";
+  source: string;
+  trimStart: number;
+  trimEnd: number;
+  playbackRate: number;
+  volume: number;
+  muted: boolean;
+}
+
+export interface ImageElement extends FramedElement {
+  type: "image";
+  source: string;
+  fit: string;
+}
+
+export interface AudioElement extends BaseElement {
+  type: "audio";
+  source: string;
+  playbackRate: number;
+  volume: number;
+  muted: boolean;
+  fadeIn: number;
+  fadeOut: number;
+}
+
+export interface ShapeElement extends PositionedElement {
+  type: "shape";
+}
+
+export type AnyElement =
+  | TextElement
+  | VideoElement
+  | ImageElement
+  | AudioElement
+  | ShapeElement;
+
+export type FrontendElementInput = AnyElement;
+export type FrontendTextElementInput = TextElement;
 
 export interface TextElementPosition {
   x: number;
@@ -33,7 +85,7 @@ export interface TextElementTiming {
   end: number;
 }
 
-export interface TextElementInput {
+export interface LegacyTextElementInput {
   type: "text";
   content: string;
   position: TextElementPosition;
@@ -41,16 +93,40 @@ export interface TextElementInput {
   trackId: string;
 }
 
-export interface TextElementDoc extends TextElementInput {
+export interface LegacyTextElementDoc extends LegacyTextElementInput {
   _id: ObjectId;
   projectId: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface TextElementResponse extends TextElementInput {
+export interface PersistedElementDoc {
+  _id: ObjectId;
+  projectId: string;
+  trackId: string;
+  type: ElementType;
+  data: AnyElement;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type ElementDoc = PersistedElementDoc | LegacyTextElementDoc;
+export type TextElementInput = LegacyTextElementInput;
+export type TextElementDoc = ElementDoc;
+
+export interface TextElementResponse extends LegacyTextElementInput {
   _id: string;
   projectId: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type GenericElementResponse = AnyElement & {
+  _id: string;
+  projectId: string;
+  trackId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ElementResponse = TextElementResponse | GenericElementResponse;
