@@ -1,8 +1,6 @@
 import cors from "cors";
 import express from "express";
 import { Request, Response, NextFunction } from "express";
-import dotenv from "dotenv";
-dotenv.config();
 import { testRouter } from "./routes/test.route";
 import chatRoutes from "./routes/chat";
 import imagesRoutes from "./routes/images";

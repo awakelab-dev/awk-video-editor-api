@@ -1,4 +1,5 @@
 import express from "express";
+import { env } from '../config/env'
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ async function searchPexels(query: string): Promise<ImageSearchResult> {
 
   const response = await fetch(url, {
     headers: {
-      Authorization: process.env.PEXELS_API_KEY || "",
+      Authorization: env.PEXELS_API_KEY,
     },
   });
 

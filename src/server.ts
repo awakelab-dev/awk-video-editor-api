@@ -1,14 +1,12 @@
 import app from './app'
 import { connectToMongo, closeMongo } from "./db/mongoClient"
-import dotenv from "dotenv";
-
-dotenv.config();
+import { env } from './config/env'
 
 async function startServer(): Promise<void> {
   try {
     await connectToMongo(); 
 
-    const PORT = process.env.PORT || 4000;
+    const PORT = env.PORT || 4000;
 
     const server = app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}/api/v1/projects/123/elements`);

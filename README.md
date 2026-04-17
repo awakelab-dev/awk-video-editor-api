@@ -30,10 +30,11 @@ Copy `.env.example` to `.env` and replace Atlas placeholders.
 
 Important values:
 
-- `PORT=7777`
+- `PORT=4000`
 - `MONGODB_URI`
 - `MONGODB_DB_NAME`
-- `CORS_ORIGIN=http://localhost:5173`
+- `OPENAI_API_KEY` (optional, required for `/api/chat`)
+- `PEXELS_API_KEY` (optional, required for `/api/images`)
 
 ## Local setup
 
@@ -44,8 +45,8 @@ npm run dev
 \`\`\`
 
 ### URLs
-- Health: `http://localhost:7777/health`
-- API base: `http://localhost:7777/api/v1`
+- Health: `http://localhost:4000/health`
+- API base: `http://localhost:4000/api/v1`
 
 ## Tests
 
@@ -63,7 +64,7 @@ npm test
 ## Security notes
 
 - Helmet enabled
-- CORS restricted by env
+- CORS enabled
 - Rate limiting enabled
 - Request body size limits enabled
 - Validation required on params/query/body
@@ -81,5 +82,5 @@ cp .env.example .env
 nano .env
 npm install
 npm run build
-PORT=7777 npm start
+PORT=4000 npm start
 \`\`\`
