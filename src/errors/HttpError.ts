@@ -1,17 +1,15 @@
-export class HttpError extends Error {
-  status: number;
-  code: string;
-  details: string[];
+import { ErrorCode } from "../utils/response";
 
-  constructor(
-    status: number,
-    code: string,
-    message: string,
-    details: string[] = []
-  ) {
+export class HttpError extends Error {
+  public readonly status: number;
+  public readonly code: ErrorCode;
+  public readonly details: string[];
+
+  constructor(status: number, code: ErrorCode, message: string, details: string[] = []) {
     super(message);
     this.status = status;
     this.code = code;
     this.details = details;
+    this.name = "HttpError";
   }
 }

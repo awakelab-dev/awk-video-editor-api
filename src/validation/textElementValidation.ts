@@ -1,11 +1,36 @@
-import { FrontendTextElementInput } from "../types/textElement";
+import {
+  AnyElement,
+  AudioElement,
+  BaseElement,
+  ElementType,
+  FrontendTextElementInput,
+  ImageElement,
+  ShapeElement,
+  TextElement,
+  VideoElement
+} from "../types/textElement";
 
-const allowedKeys = [
+const elementTypes: readonly ElementType[] = [
+  "text",
+  "video",
+  "image",
+  "audio",
+  "shape"
+];
+
+const baseKeys = [
   "id",
   "type",
   "name",
   "startTime",
   "duration",
+  "opacity"
+] as const;
+
+const legacyCompatibleKeys = ["trackId"] as const;
+
+const textKeys = [
+  ...baseKeys,
   "x",
   "y",
   "width",
@@ -20,10 +45,72 @@ const allowedKeys = [
   "lineHeight",
   "letterSpacing",
   "textAlign",
-  "trackId"
+  ...legacyCompatibleKeys
 ] as const;
 
-type AllowedKey = (typeof allowedKeys)[number];
+const videoKeys = [
+  ...baseKeys,
+  "x",
+  "y",
+  "width",
+  "height",
+  "rotation",
+  "source",
+  "trimStart",
+  "trimEnd",
+  "playbackRate",
+  "volume",
+  "muted",
+  ...legacyCompatibleKeys
+] as const;
+
+const imageKeys = [
+  ...baseKeys,
+  "x",
+  "y",
+  "width",
+  "height",
+  "rotation",
+  "source",
+  "fit",
+  ...legacyCompatibleKeys
+] as const;
+
+const audioKeys = [
+  ...baseKeys,
+  "source",
+  "playbackRate",
+  "volume",
+  "muted",
+  "fadeIn",
+  "fadeOut",
+  ...legacyCompatibleKeys
+] as const;
+
+const shapeKeys = [
+  ...baseKeys,
+  "x",
+  "y",
+  ...legacyCompatibleKeys
+] as const;
+
+const allowedKeysByType: Record<ElementType, readonly string[]> = {
+  text: textKeys,
+  video: videoKeys,
+  image: imageKeys,
+  audio: audioKeys,
+  shape: shapeKeys
+};
+
+const allKnownKeys = Array.from(
+  new Set([
+    ...textKeys,
+    ...videoKeys,
+    ...imageKeys,
+    ...audioKeys,
+    ...shapeKeys
+  ])
+);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -33,37 +120,35 @@ const isNumber = (value: unknown): value is number => {
   return typeof value === "number" && Number.isFinite(value);
 };
 
+const isBoolean = (value: unknown): value is boolean => {
+  return typeof value === "boolean";
+};
+
 const isNonEmptyString = (value: unknown): value is string => {
   return typeof value === "string" && value.trim().length > 0;
 };
 
-const getUnknownKeys = (value: Record<string, unknown>): string[] => {
-  return Object.keys(value).filter(
-    (key) => !allowedKeys.includes(key as AllowedKey)
-  );
+const isElementType = (value: unknown): value is ElementType => {
+  return typeof value === "string" && elementTypes.includes(value as ElementType);
 };
 
-export type ValidationResult =
-  | { ok: true; value: FrontendTextElementInput }
-  | { ok: false; errors: string[] };
+const getUnknownKeys = (
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[]
+): string[] => {
+  return Object.keys(value).filter((key) => !allowedKeys.includes(key));
+};
 
-export function validateFrontendTextElementInput(body: unknown): ValidationResult {
-  if (!isRecord(body)) {
-    return { ok: false, errors: ["Body must be an object"] };
-  }
-
-  const errors: string[] = [];
-  const unknownKeys = getUnknownKeys(body);
-  if (unknownKeys.length > 0) {
-    errors.push(`Unknown field(s): ${unknownKeys.join(", ")}`);
-  }
-
+const validateBaseFields = (
+  body: Record<string, unknown>,
+  errors: string[]
+): void => {
   if (!isNonEmptyString(body.id)) {
     errors.push("id is required");
   }
 
-  if (body.type !== "text") {
-    errors.push("type must be \"text\"");
+  if (!isElementType(body.type)) {
+    errors.push(`type must be one of: ${elementTypes.join(", ")}`);
   }
 
   if (!isNonEmptyString(body.name)) {
@@ -78,6 +163,15 @@ export function validateFrontendTextElementInput(body: unknown): ValidationResul
     errors.push("duration must be a number");
   }
 
+  if (body.opacity !== undefined && !isNumber(body.opacity)) {
+    errors.push("opacity must be a number");
+  }
+};
+
+const validateFramedFields = (
+  body: Record<string, unknown>,
+  errors: string[]
+): void => {
   if (!isNumber(body.x)) {
     errors.push("x must be a number");
   }
@@ -97,57 +191,38 @@ export function validateFrontendTextElementInput(body: unknown): ValidationResul
   if (!isNumber(body.rotation)) {
     errors.push("rotation must be a number");
   }
+};
 
-  if (!isNonEmptyString(body.text)) {
-    errors.push("text is required");
+const validatePositionFields = (
+  body: Record<string, unknown>,
+  errors: string[]
+): void => {
+  if (!isNumber(body.x)) {
+    errors.push("x must be a number");
   }
 
-  if (!isNonEmptyString(body.fontFamily)) {
-    errors.push("fontFamily is required");
+  if (!isNumber(body.y)) {
+    errors.push("y must be a number");
   }
+};
 
-  if (!isNumber(body.fontSize)) {
-    errors.push("fontSize must be a number");
-  }
-
-  if (!isNumber(body.fontWeight)) {
-    errors.push("fontWeight must be a number");
-  }
-
-  if (!isNonEmptyString(body.textColor)) {
-    errors.push("textColor is required");
-  }
-
-  if (!isNonEmptyString(body.backgroundColor)) {
-    errors.push("backgroundColor is required");
-  }
-
-  if (!isNumber(body.lineHeight)) {
-    errors.push("lineHeight must be a number");
-  }
-
-  if (!isNumber(body.letterSpacing)) {
-    errors.push("letterSpacing must be a number");
-  }
-
-  if (!isNonEmptyString(body.textAlign)) {
-    errors.push("textAlign is required");
-  }
-
-  if (errors.length > 0) {
-    return { ok: false, errors };
-  }
-
-  if (!isNonEmptyString(body.trackId)) {
-  errors.push("trackId is required");
-}
-
-  const value: FrontendTextElementInput = {
+const buildBaseElement = <TType extends ElementType>(
+  body: Record<string, unknown>,
+  type: TType
+): BaseElement & { type: TType } => {
+  return {
     id: body.id as string,
-    type: body.type as "text",
+    type,
     name: body.name as string,
     startTime: body.startTime as number,
     duration: body.duration as number,
+    opacity: (body.opacity as number | undefined) ?? 1
+  };
+};
+
+const buildTextElement = (body: Record<string, unknown>): TextElement => {
+  return {
+    ...buildBaseElement(body, "text"),
     x: body.x as number,
     y: body.y as number,
     width: body.width as number,
@@ -161,9 +236,230 @@ export function validateFrontendTextElementInput(body: unknown): ValidationResul
     backgroundColor: body.backgroundColor as string,
     lineHeight: body.lineHeight as number,
     letterSpacing: body.letterSpacing as number,
-    textAlign: body.textAlign as string,
-    trackId: body.trackId as string,
+    textAlign: body.textAlign as string
   };
+};
+
+const buildVideoElement = (body: Record<string, unknown>): VideoElement => {
+  return {
+    ...buildBaseElement(body, "video"),
+    x: body.x as number,
+    y: body.y as number,
+    width: body.width as number,
+    height: body.height as number,
+    rotation: body.rotation as number,
+    source: body.source as string,
+    trimStart: body.trimStart as number,
+    trimEnd: body.trimEnd as number,
+    playbackRate: body.playbackRate as number,
+    volume: body.volume as number,
+    muted: body.muted as boolean
+  };
+};
+
+const buildImageElement = (body: Record<string, unknown>): ImageElement => {
+  return {
+    ...buildBaseElement(body, "image"),
+    x: body.x as number,
+    y: body.y as number,
+    width: body.width as number,
+    height: body.height as number,
+    rotation: body.rotation as number,
+    source: body.source as string,
+    fit: body.fit as string
+  };
+};
+
+const buildAudioElement = (body: Record<string, unknown>): AudioElement => {
+  return {
+    ...buildBaseElement(body, "audio"),
+    source: body.source as string,
+    playbackRate: body.playbackRate as number,
+    volume: body.volume as number,
+    muted: body.muted as boolean,
+    fadeIn: body.fadeIn as number,
+    fadeOut: body.fadeOut as number
+  };
+};
+
+const buildShapeElement = (body: Record<string, unknown>): ShapeElement => {
+  return {
+    ...buildBaseElement(body, "shape"),
+    x: body.x as number,
+    y: body.y as number
+  };
+};
+
+export type ValidationResult =
+  | { ok: true; value: AnyElement }
+  | { ok: false; errors: string[] };
+
+export function validateFrontendElementInput(body: unknown): ValidationResult {
+  if (!isRecord(body)) {
+    return { ok: false, errors: ["Body must be an object"] };
+  }
+
+  const errors: string[] = [];
+  const allowedKeys = isElementType(body.type)
+    ? allowedKeysByType[body.type]
+    : allKnownKeys;
+  const unknownKeys = getUnknownKeys(body, allowedKeys);
+
+  if (unknownKeys.length > 0) {
+    errors.push(`Unknown field(s): ${unknownKeys.join(", ")}`);
+  }
+
+  validateBaseFields(body, errors);
+
+  if (!isElementType(body.type)) {
+    return { ok: false, errors };
+  }
+
+  switch (body.type) {
+    case "text":
+      validateFramedFields(body, errors);
+
+      if (!isNonEmptyString(body.text)) {
+        errors.push("text is required");
+      }
+
+      if (!isNonEmptyString(body.fontFamily)) {
+        errors.push("fontFamily is required");
+      }
+
+      if (!isNumber(body.fontSize)) {
+        errors.push("fontSize must be a number");
+      }
+
+      if (!isNumber(body.fontWeight)) {
+        errors.push("fontWeight must be a number");
+      }
+
+      if (!isNonEmptyString(body.textColor)) {
+        errors.push("textColor is required");
+      }
+
+      if (!isNonEmptyString(body.backgroundColor)) {
+        errors.push("backgroundColor is required");
+      }
+
+      if (!isNumber(body.lineHeight)) {
+        errors.push("lineHeight must be a number");
+      }
+
+      if (!isNumber(body.letterSpacing)) {
+        errors.push("letterSpacing must be a number");
+      }
+
+      if (!isNonEmptyString(body.textAlign)) {
+        errors.push("textAlign is required");
+      }
+      break;
+
+    case "video":
+      validateFramedFields(body, errors);
+
+      if (!isNonEmptyString(body.source)) {
+        errors.push("source is required");
+      }
+
+      if (!isNumber(body.trimStart)) {
+        errors.push("trimStart must be a number");
+      }
+
+      if (!isNumber(body.trimEnd)) {
+        errors.push("trimEnd must be a number");
+      }
+
+      if (!isNumber(body.playbackRate)) {
+        errors.push("playbackRate must be a number");
+      }
+
+      if (!isNumber(body.volume)) {
+        errors.push("volume must be a number");
+      }
+
+      if (!isBoolean(body.muted)) {
+        errors.push("muted must be a boolean");
+      }
+      break;
+
+    case "image":
+      validateFramedFields(body, errors);
+
+      if (!isNonEmptyString(body.source)) {
+        errors.push("source is required");
+      }
+
+      if (!isNonEmptyString(body.fit)) {
+        errors.push("fit is required");
+      }
+      break;
+
+    case "audio":
+      if (!isNonEmptyString(body.source)) {
+        errors.push("source is required");
+      }
+
+      if (!isNumber(body.playbackRate)) {
+        errors.push("playbackRate must be a number");
+      }
+
+      if (!isNumber(body.volume)) {
+        errors.push("volume must be a number");
+      }
+
+      if (!isBoolean(body.muted)) {
+        errors.push("muted must be a boolean");
+      }
+
+      if (!isNumber(body.fadeIn)) {
+        errors.push("fadeIn must be a number");
+      }
+
+      if (!isNumber(body.fadeOut)) {
+        errors.push("fadeOut must be a number");
+      }
+      break;
+
+    case "shape":
+      validatePositionFields(body, errors);
+      break;
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  let value: AnyElement;
+
+  switch (body.type) {
+    case "text":
+      value = buildTextElement(body);
+      break;
+    case "video":
+      value = buildVideoElement(body);
+      break;
+    case "image":
+      value = buildImageElement(body);
+      break;
+    case "audio":
+      value = buildAudioElement(body);
+      break;
+    case "shape":
+      value = buildShapeElement(body);
+      break;
+  }
 
   return { ok: true, value };
 }
+
+export function validateFrontendTextElementInput(
+  body: unknown
+): ValidationResult {
+  return validateFrontendElementInput(body);
+}
+
+export type LegacyTextValidationResult =
+  | { ok: true; value: FrontendTextElementInput }
+  | { ok: false; errors: string[] };
