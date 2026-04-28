@@ -3,9 +3,9 @@ import { HttpError } from "../errors/HttpError";
 import { projectExists } from "../services/projectService";
 import {
   createElementFromFrontend,
-  getTextElementsByProjectId
-} from "../services/textElementService";
-import { validateFrontendElementInput } from "../validation/textElementValidation";
+  getElementsByProjectId
+} from "../services/elementService";
+import { validateFrontendElementInput } from "../validation/elementValidation";
 import { createRequestId, successResponse } from "../utils/response";
 
 const getRequestId = (res: Response): string => {
@@ -52,13 +52,13 @@ const getTrackId = (req: Request): string | null => {
   return null;
 };
 
-export async function createTextElementHandler(
+export async function createElementHandler(
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const projectId = req.params.projectId;
+    const projectId = req.params.projectId as string;
 
     if (!projectId) {
       throw new HttpError(400, "VALIDATION_ERROR", "projectId is required", [
@@ -92,13 +92,13 @@ export async function createTextElementHandler(
   }
 }
 
-export async function getTextElementsHandler(
+export async function getElementsHandler(
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const projectId = req.params.projectId;
+    const projectId = req.params.projectId as string;
     if (!projectId) {
       throw new HttpError(400, "VALIDATION_ERROR", "projectId is required", [
         "projectId is required"
@@ -110,7 +110,7 @@ export async function getTextElementsHandler(
       throw new HttpError(404, "NOT_FOUND", "Project not found", []);
     }
 
-    const elements = await getTextElementsByProjectId(projectId);
+    const elements = await getElementsByProjectId(projectId);
     const requestId = getRequestId(res);
     res.status(200).json(successResponse(elements, requestId));
   } catch (error) {

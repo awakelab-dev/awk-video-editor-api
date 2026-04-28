@@ -4,7 +4,6 @@ import {
   ElementDoc,
   ElementResponse,
   FrontendElementInput,
-  FrontendTextElementInput,
   GenericElementResponse,
   LegacyTextElementDoc,
   PersistedElementDoc,
@@ -12,11 +11,11 @@ import {
   TextElementDoc,
   TextElementInput,
   TextElementResponse
-} from "../types/textElement";
+} from "../types/element";
 import {
-  findTextElementsByProjectId,
-  insertTextElement
-} from "../repositories/textElementRepository";
+  findElementsByProjectId,
+  insertElement
+} from "../repositories/elementRepository";
 
 const isPersistedElementDoc = (doc: ElementDoc): doc is PersistedElementDoc => {
   return "data" in doc;
@@ -90,7 +89,7 @@ function toResponse(doc: TextElementDoc): ElementResponse {
 }
 
 export function transformFrontendInput(
-  input: FrontendTextElementInput,
+  input: TextElement,
   trackId: string
 ): TextElementInput {
   return {
@@ -108,7 +107,7 @@ export function transformFrontendInput(
   };
 }
 
-export async function createTextElement(
+async function createTextElement(
   projectId: string,
   input: TextElementInput
 ): Promise<TextElementResponse> {
@@ -126,7 +125,7 @@ export async function createTextElement(
     updatedAt: now
   };
 
-  await insertTextElement(doc);
+  await insertElement(doc);
   return toLegacyTextResponse(doc);
 }
 
@@ -147,7 +146,7 @@ export async function createElement(
     updatedAt: now
   };
 
-  await insertTextElement(doc);
+  await insertElement(doc);
   return toResponse(doc);
 }
 
@@ -159,18 +158,9 @@ export async function createElementFromFrontend(
   return createElement(projectId, input, trackId);
 }
 
-export async function createTextElementFromFrontend(
-  projectId: string,
-  input: FrontendTextElementInput,
-  trackId: string
-): Promise<TextElementResponse> {
-  const response = await createElementFromFrontend(projectId, input, trackId);
-  return response as TextElementResponse;
-}
-
-export async function getTextElementsByProjectId(
+export async function getElementsByProjectId(
   projectId: string
 ): Promise<ElementResponse[]> {
-  const docs = await findTextElementsByProjectId(projectId);
+  const docs = await findElementsByProjectId(projectId);
   return docs.map(toResponse);
 }
