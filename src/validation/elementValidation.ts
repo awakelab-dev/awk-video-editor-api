@@ -3,12 +3,12 @@ import {
   AudioElement,
   BaseElement,
   ElementType,
-  FrontendTextElementInput,
+  FrontendElementInput,
   ImageElement,
   ShapeElement,
   TextElement,
   VideoElement
-} from "../types/textElement";
+} from "../types/element";
 
 const elementTypes: readonly ElementType[] = [
   "text",
@@ -454,12 +454,6 @@ export function validateFrontendElementInput(body: unknown): ValidationResult {
   return { ok: true, value };
 }
 
-export function validateFrontendTextElementInput(
-  body: unknown
-): ValidationResult {
-  return validateFrontendElementInput(body);
-}
-
 export type LegacyTextValidationResult =
-  | { ok: true; value: FrontendTextElementInput }
+  | { ok: true; value: FrontendElementInput }
   | { ok: false; errors: string[] };

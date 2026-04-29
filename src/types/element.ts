@@ -73,7 +73,6 @@ export type AnyElement =
   | ShapeElement;
 
 export type FrontendElementInput = AnyElement;
-export type FrontendTextElementInput = TextElement;
 
 export interface TextElementPosition {
   x: number;
