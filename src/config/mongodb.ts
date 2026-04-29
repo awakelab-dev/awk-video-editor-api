@@ -13,6 +13,9 @@ export async function connectMongo(): Promise<void> {
   client = new MongoClient(env.MONGODB_URI)
   await client.connect()
   database = client.db(env.MONGODB_DB_NAME)
+  await database.collection('projects').createIndex({ id: 1 }, { unique: true })
+  await database.collection('editor_states').createIndex({ projectId: 1 }, { unique: true })
+  await database.collection('project_snapshots').createIndex({ projectId: 1 }, { unique: true })
   connected = true
 }
 

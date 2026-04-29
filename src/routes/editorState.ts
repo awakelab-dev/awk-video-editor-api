@@ -104,83 +104,6 @@ function validateEditorStatePayload(body: unknown): ValidationError[] {
   return errors
 }
 
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const projectId = req.params.projectId
-
-    if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json({ success: false, message: 'projectId is required' })
-    }
-
-    if (!isMongoConnected()) {
-      return res.status(503).json({ success: false, message: 'MongoDB is not connected' })
-    }
-
-    const db = getMongoDb()
-    if (!db) {
-      return res.status(503).json({ success: false, message: 'MongoDB database is unavailable' })
-    }
-
-    const projectsCollection: any = db.collection('projects')
-    const editorStatesCollection: any = db.collection('editor_states')
-
-    let project: any = await projectsCollection.findOne({ id: projectId }, { projection: { _id: 0 } })
-    let editorState: any = await editorStatesCollection.findOne({ projectId }, { projection: { _id: 0 } })
-
-    const now = new Date().toISOString()
-
-    if (!project) {
-      project = {
-        id: projectId,
-        name: projectId === 'demo-project' ? 'Demo Project' : 'Untitled Project',
-        duration: 0,
-        resolution: { w: 1920, h: 1080 },
-        createdAt: now,
-        updatedAt: now
-      }
-      await projectsCollection.updateOne({ id: projectId }, { $set: project }, { upsert: true })
-    }
-
-    if (!editorState) {
-      editorState = {
-        projectId,
-        revision: 0,
-        sessionId: `session_${projectId}`,
-        playback: { currentTime: 0, isPlaying: false, zoomLevel: 100 },
-        selection: { selectedElementId: null, selectionSource: null },
-        assets: [],
-        tracks: [],
-        updatedAt: now,
-        updatedBy: 'system'
-      }
-      await editorStatesCollection.updateOne({ projectId }, { $set: editorState }, { upsert: true })
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Editor state fetched successfully',
-      data: {
-        projectId: project.id,
-        project: {
-          projectName: project.name,
-          duration: project.duration,
-          resolution: project.resolution
-        },
-        revision: editorState.revision,
-        sessionId: editorState.sessionId,
-        playback: editorState.playback,
-        selection: editorState.selection,
-        assets: editorState.assets,
-        tracks: editorState.tracks,
-        updatedAt: editorState.updatedAt
-      }
-    })
-  } catch (error) {
-    console.error('Error fetching editor state:', error)
-    return res.status(500).json({ success: false, message: 'Server error' })
-  }
-})
-
 router.patch('/', async (req: Request, res: Response) => {
   try {
     const projectId = req.params.projectId
@@ -210,6 +133,11 @@ router.patch('/', async (req: Request, res: Response) => {
     const projectsCollection: any = db.collection('projects')
     const editorStatesCollection: any = db.collection('editor_states')
 
+    const project: any = await projectsCollection.findOne({ id: projectId })
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' })
+    }
+
     const currentState: any = await editorStatesCollection.findOne({ projectId })
 
     if (currentState && req.body.revision !== currentState.revision) {
@@ -225,15 +153,12 @@ router.patch('/', async (req: Request, res: Response) => {
       { id: projectId },
       {
         $set: {
-          id: projectId,
           name: req.body.project.projectName,
           duration: req.body.project.duration,
           resolution: req.body.project.resolution,
           updatedAt: now
-        },
-        $setOnInsert: { createdAt: now }
-      },
-      { upsert: true }
+        }
+      }
     )
 
     const nextRevision = currentState ? currentState.revision + 1 : 0
@@ -252,7 +177,7 @@ router.patch('/', async (req: Request, res: Response) => {
 
     await editorStatesCollection.updateOne(
       { projectId },
-      { $set: nextEditorState },
+      { $set: nextEditorState, $setOnInsert: { createdAt: now } },
       { upsert: true }
     )
 
