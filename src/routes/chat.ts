@@ -1,11 +1,13 @@
 import { Router, Request, Response } from "express";
 import OpenAI from "openai";
-import { env } from '../config/env'
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const router = Router();
 
 const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 function isValidMessage(value: any) {
