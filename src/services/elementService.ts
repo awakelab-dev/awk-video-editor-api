@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { getDb } from "../db/mongoClient";
 import {
   AnyElement,
   ElementDoc,
@@ -13,7 +14,6 @@ import {
   TextElementResponse
 } from "../types/element";
 import {
-  findElementsByProjectId,
   insertElement
 } from "../repositories/elementRepository";
 
@@ -129,6 +129,129 @@ async function createTextElement(
   return toLegacyTextResponse(doc);
 }
 
+async function addElementToProject(
+  projectId: string,
+  doc: PersistedElementDoc
+): Promise<void> {
+  const db = getDb();
+  const elementId = doc._id.toHexString();
+  const now = new Date().toISOString();
+  const projectElement = {
+    ...doc.data,
+    id: elementId,
+    trackId: doc.trackId,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const result = await db.collection("projects").updateOne(
+    { id: projectId },
+    [
+      {
+        $set: {
+          elements: {
+            $mergeObjects: [
+              {
+                $cond: [
+                  {
+                    $eq: [{ $type: "$elements" }, "object"]
+                  },
+                  "$elements",
+                  {}
+                ]
+              },
+              {
+                [elementId]: projectElement
+              }
+            ]
+          },
+          tracks: {
+            $let: {
+              vars: {
+                existingTracks: {
+                  $cond: [{ $isArray: "$tracks" }, "$tracks", []]
+                }
+              },
+              in: {
+                $cond: [
+                  {
+                    $in: [
+                      doc.trackId,
+                      {
+                        $map: {
+                          input: "$$existingTracks",
+                          as: "track",
+                          in: "$$track.id"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    $map: {
+                      input: "$$existingTracks",
+                      as: "track",
+                      in: {
+                        $cond: [
+                          {
+                            $eq: ["$$track.id", doc.trackId]
+                          },
+                          {
+                            $mergeObjects: [
+                              "$$track",
+                              {
+                                elementIds: {
+                                  $concatArrays: [
+                                    {
+                                      $cond: [
+                                        { $isArray: "$$track.elementIds" },
+                                        "$$track.elementIds",
+                                        []
+                                      ]
+                                    },
+                                    [elementId]
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          "$$track"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    $concatArrays: [
+                      "$$existingTracks",
+                      [
+                        {
+                          id: doc.trackId,
+                          name: doc.trackId,
+                          type: doc.type,
+                          elementIds: [elementId]
+                        }
+                      ]
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          updatedAt: now,
+          revision: {
+            $add: [{ $ifNull: ["$revision", 0] }, 1]
+          }
+        }
+      }
+    ]
+  );
+
+  if (result.matchedCount === 0) {
+    console.warn(
+      `[addElementToProject] Project not found: ${projectId}`
+    );
+  }
+}
+
 export async function createElement(
   projectId: string,
   input: AnyElement,
@@ -147,6 +270,10 @@ export async function createElement(
   };
 
   await insertElement(doc);
+  console.log("ADDING TO PROJECT", projectId);
+  await addElementToProject(projectId, doc);
+  console.log("PROJECT UPDATE RESULT");
+
   return toResponse(doc);
 }
 
@@ -161,6 +288,11 @@ export async function createElementFromFrontend(
 export async function getElementsByProjectId(
   projectId: string
 ): Promise<ElementResponse[]> {
-  const docs = await findElementsByProjectId(projectId);
-  return docs.map(toResponse);
+  const db = getDb();
+  const project = await db.collection("projects").findOne({ id: projectId });
+  if (!project || typeof project.elements !== "object" || project.elements === null) {
+    return [];
+  }
+
+  return Object.values(project.elements) as ElementResponse[];
 }

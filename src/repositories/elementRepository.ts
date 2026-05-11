@@ -10,7 +10,9 @@ function getCollection(): Collection<ElementDoc> {
 
 export async function insertElement(doc: ElementDoc): Promise<void> {
   const collection = getCollection();
+  console.log("INSERTING ELEMENT", doc);
   await collection.insertOne(doc);
+  console.log("ELEMENT INSERTED");
 }
 
 export async function findElementsByProjectId(

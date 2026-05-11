@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { getMongoDb, isMongoConnected } from '../config/mongodb'
+import { patchProjectHandler } from '../controllers/projectController'
 import {
   buildInitialEditorState,
   generateProjectId,
@@ -149,6 +150,8 @@ router.get('/:projectId', async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: 'Server error' })
   }
 })
+
+router.patch('/:projectId', patchProjectHandler)
 
 router.get('/:projectId/editor-state', async (req: Request, res: Response) => {
   try {
