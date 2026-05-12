@@ -128,6 +128,44 @@ function getTrackElementIds(track: Record<string, unknown>): string[] {
     : [];
 }
 
+function getTrackElements(track: Record<string, unknown>): Record<string, unknown>[] {
+  return Array.isArray(track.elements)
+    ? track.elements.filter((value): value is Record<string, unknown> => isRecord(value))
+    : [];
+}
+
+function trackContainsElement(
+  track: Record<string, unknown>,
+  elementId: string
+): boolean {
+  return getTrackElementIds(track).includes(elementId);
+}
+
+function syncTrackElements(
+  track: Record<string, unknown>,
+  elementsById: Record<string, unknown>
+): Record<string, unknown> {
+  const currentTrackElements = new Map(
+    getTrackElements(track)
+      .filter((element) => typeof element.id === "string")
+      .map((element) => [element.id as string, element])
+  );
+
+  return {
+    ...track,
+    elements: getTrackElementIds(track)
+      .map((elementId) => {
+        const projectElement = elementsById[elementId];
+        if (isRecord(projectElement)) {
+          return projectElement;
+        }
+
+        return currentTrackElements.get(elementId);
+      })
+      .filter((element): element is Record<string, unknown> => isRecord(element))
+  };
+}
+
 function insertElementId(
   elementIds: string[],
   elementId: string,
@@ -286,6 +324,7 @@ export async function patchProject(
   const now = new Date().toISOString();
   let projectChanged = false;
   let tracksChanged = false;
+  let trackElementsChanged = false;
 
   for (const change of input.changes) {
     const currentElement = nextElements[change.elementId];
@@ -304,6 +343,9 @@ export async function patchProject(
         ...change.patch,
         updatedAt: now
       };
+      trackElementsChanged =
+        trackElementsChanged ||
+        nextTracks.some((track) => trackContainsElement(track, change.elementId));
       continue;
     }
 
@@ -348,6 +390,10 @@ export async function patchProject(
 
       projectChanged = true;
       tracksChanged = true;
+      nextElements[change.elementId] = {
+        ...currentElement,
+        trackId: change.toTrackId
+      };
       nextTracks.splice(0, nextTracks.length, ...moveResult.tracks);
       continue;
     }
@@ -381,12 +427,17 @@ export async function patchProject(
     };
   }
 
+  const shouldPersistTracks = tracksChanged || trackElementsChanged;
+  const syncedTracks = shouldPersistTracks
+    ? nextTracks.map((track) => syncTrackElements(track, nextElements))
+    : nextTracks;
+
   const result = await projectsCollection.updateOne(
     buildRevisionFilter(projectId, currentRevision),
     {
       $set: {
         elements: nextElements,
-        ...(tracksChanged ? { tracks: nextTracks } : {}),
+        ...(shouldPersistTracks ? { tracks: syncedTracks } : {}),
         updatedAt: now
       },
       $inc: {

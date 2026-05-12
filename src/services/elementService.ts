@@ -210,6 +210,18 @@ async function addElementToProject(
                                     },
                                     [elementId]
                                   ]
+                                },
+                                elements: {
+                                  $concatArrays: [
+                                    {
+                                      $cond: [
+                                        { $isArray: "$$track.elements" },
+                                        "$$track.elements",
+                                        []
+                                      ]
+                                    },
+                                    [projectElement]
+                                  ]
                                 }
                               }
                             ]
@@ -227,7 +239,8 @@ async function addElementToProject(
                           id: doc.trackId,
                           name: doc.trackId,
                           type: doc.type,
-                          elementIds: [elementId]
+                          elementIds: [elementId],
+                          elements: [projectElement]
                         }
                       ]
                     ]
