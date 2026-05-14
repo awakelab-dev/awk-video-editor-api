@@ -10,8 +10,45 @@ export type ProjectDocument = {
   name: string
   duration: number
   resolution: Resolution
+  revision?: number
+  sessionId?: string | null
+  playback?: ProjectPlayback
+  selection?: ProjectSelection
+  assets?: Record<string, unknown>
+  tracks?: ProjectTrack[]
+  elements?: Record<string, ProjectElement>
   createdAt: string
   updatedAt: string
+}
+
+export type ProjectPlayback = {
+  currentTime: number
+  isPlaying: boolean
+  zoomLevel: number
+}
+
+export type ProjectSelection = {
+  selectedElementId: string | null
+  selectedTrackId?: string | null
+  selectionSource: 'canvas' | 'timeline' | 'element-library' | null
+}
+
+export type ProjectTrack = {
+  id: string
+  name: string
+  type?: 'video' | 'image' | 'audio' | 'text' | 'shape' | 'mixed'
+  elementIds: string[]
+}
+
+export type ProjectElement = {
+  id?: string
+  type?: string
+  name?: string
+  startTime?: number
+  duration?: number
+  opacity?: number
+  trackId?: string
+  [key: string]: unknown
 }
 
 export type ApiProject = {
@@ -19,6 +56,13 @@ export type ApiProject = {
   name: string
   duration: number
   resolution: Resolution
+  revision: number
+  sessionId?: string | null
+  playback: ProjectPlayback
+  selection: ProjectSelection
+  assets: Record<string, unknown>
+  tracks: ProjectTrack[]
+  elements: Record<string, ProjectElement>
   createdAt: string
   updatedAt: string
 }
@@ -56,6 +100,29 @@ type ProjectCreatePayload = {
 }
 
 const allowedCreateFields = new Set(['name', 'duration', 'resolution'])
+
+export function createDefaultProjectTracks(): ProjectTrack[] {
+  return [
+    {
+      id: 'track-text',
+      name: 'Text',
+      type: 'text',
+      elementIds: []
+    },
+    {
+      id: 'track-audio',
+      name: 'Audio',
+      type: 'audio',
+      elementIds: []
+    },
+    {
+      id: 'track-media',
+      name: 'Media',
+      type: 'mixed',
+      elementIds: []
+    }
+  ]
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -132,12 +199,157 @@ export function normalizeCreateProjectPayload(body: ProjectCreatePayload): Pick<
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizePlayback(playback: unknown): ProjectPlayback {
+  if (!isRecord(playback)) {
+    return {
+      currentTime: 0,
+      isPlaying: false,
+      zoomLevel: 100
+    }
+  }
+
+  return {
+    currentTime: typeof playback.currentTime === 'number' ? playback.currentTime : 0,
+    isPlaying: typeof playback.isPlaying === 'boolean' ? playback.isPlaying : false,
+    zoomLevel: typeof playback.zoomLevel === 'number' ? playback.zoomLevel : 100
+  }
+}
+
+function normalizeSelection(selection: unknown): ProjectSelection {
+  if (!isRecord(selection)) {
+    return {
+      selectedElementId: null,
+      selectedTrackId: null,
+      selectionSource: null
+    }
+  }
+
+  const source = selection.selectionSource
+  return {
+    selectedElementId:
+      typeof selection.selectedElementId === 'string' ? selection.selectedElementId : null,
+    selectedTrackId:
+      typeof selection.selectedTrackId === 'string' ? selection.selectedTrackId : null,
+    selectionSource:
+      source === 'canvas' || source === 'timeline' || source === 'element-library'
+        ? source
+        : null
+  }
+}
+
+function normalizeAssets(assets: unknown): Record<string, unknown> {
+  return isRecord(assets) ? assets : {}
+}
+
+function normalizeElements(elements: unknown): Record<string, ProjectElement> {
+  if (!isRecord(elements)) {
+    return {}
+  }
+
+  const normalized: Record<string, ProjectElement> = {}
+
+  for (const [elementId, element] of Object.entries(elements)) {
+    if (!isRecord(element)) {
+      continue
+    }
+
+    normalized[elementId] = {
+      ...element,
+      id: typeof element.id === 'string' ? element.id : elementId
+    } as ProjectElement
+  }
+
+  return normalized
+}
+
+function uniqueStrings(values: unknown): string[] {
+  if (!Array.isArray(values)) {
+    return []
+  }
+
+  return [...new Set(values.filter((value): value is string => typeof value === 'string'))]
+}
+
+function getTrackElementIds(track: Record<string, unknown>): string[] {
+  const explicitElementIds = uniqueStrings(track.elementIds)
+  if (explicitElementIds.length > 0) {
+    return explicitElementIds
+  }
+
+  if (!Array.isArray(track.elements)) {
+    return []
+  }
+
+  return uniqueStrings(
+    track.elements
+      .filter(isRecord)
+      .map((element) => element.id)
+  )
+}
+
+function normalizeTracks(
+  tracks: unknown,
+  elements: Record<string, ProjectElement>
+): ProjectTrack[] {
+  const rawTracks = Array.isArray(tracks) ? tracks.filter(isRecord) : []
+  const normalizedTracks = rawTracks.map((track): ProjectTrack => ({
+    id: typeof track.id === 'string' ? track.id : 'track-media',
+    name: typeof track.name === 'string' ? track.name : String(track.id ?? 'Media'),
+    type:
+      track.type === 'video' ||
+      track.type === 'image' ||
+      track.type === 'audio' ||
+      track.type === 'text' ||
+      track.type === 'shape' ||
+      track.type === 'mixed'
+        ? track.type
+        : undefined,
+    elementIds: getTrackElementIds(track)
+  }))
+
+  for (const defaultTrack of createDefaultProjectTracks()) {
+    if (!normalizedTracks.some((track) => track.id === defaultTrack.id)) {
+      normalizedTracks.push(defaultTrack)
+    }
+  }
+
+  for (const [elementId, element] of Object.entries(elements)) {
+    if (normalizedTracks.some((track) => track.elementIds.includes(elementId))) {
+      continue
+    }
+
+    if (typeof element.trackId !== 'string') {
+      continue
+    }
+
+    const track = normalizedTracks.find((candidate) => candidate.id === element.trackId)
+    if (track) {
+      track.elementIds = [...track.elementIds, elementId]
+    }
+  }
+
+  return normalizedTracks
+}
+
 export function toApiProject(project: ProjectDocument): ApiProject {
+  const elements = normalizeElements(project.elements)
+
   return {
     projectId: project.id,
     name: project.name,
     duration: project.duration,
     resolution: project.resolution,
+    revision: typeof project.revision === 'number' ? project.revision : 0,
+    ...(project.sessionId !== undefined ? { sessionId: project.sessionId } : {}),
+    playback: normalizePlayback(project.playback),
+    selection: normalizeSelection(project.selection),
+    assets: normalizeAssets(project.assets),
+    tracks: normalizeTracks(project.tracks, elements),
+    elements,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt
   }
@@ -161,7 +373,7 @@ export function buildInitialEditorState(project: ProjectDocument): InitialEditor
       selectionSource: null
     },
     assets: [],
-    tracks: [],
+    tracks: normalizeTracks(project.tracks, normalizeElements(project.elements)),
     updatedAt: project.updatedAt
   }
 }

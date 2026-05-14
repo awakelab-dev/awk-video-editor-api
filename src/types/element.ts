@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 export type ElementType = "text" | "video" | "image" | "audio" | "shape";
 
 export interface BaseElement {
-  id: string;
+  id?: string;
   type: ElementType;
   name: string;
   startTime: number;
@@ -61,8 +61,13 @@ export interface AudioElement extends BaseElement {
   fadeOut: number;
 }
 
-export interface ShapeElement extends PositionedElement {
+export interface ShapeElement extends FramedElement {
   type: "shape";
+  shapeType: "rectangle" | "ellipse" | "line" | "triangle" | "polygon";
+  fillColor: string;
+  strokeColor: string;
+  strokeWidth: number;
+  cornerRadius: number;
 }
 
 export type AnyElement =

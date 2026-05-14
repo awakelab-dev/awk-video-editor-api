@@ -3,6 +3,7 @@ import { getMongoDb, isMongoConnected } from '../config/mongodb'
 import { patchProjectHandler } from '../controllers/projectController'
 import {
   buildInitialEditorState,
+  createDefaultProjectTracks,
   generateProjectId,
   normalizeCreateProjectPayload,
   ProjectDocument,
@@ -58,6 +59,21 @@ router.post('/', async (req: Request, res: Response) => {
     const project: ProjectDocument = {
       id: projectId,
       ...normalized,
+      revision: 0,
+      sessionId: `session_${projectId}`,
+      playback: {
+        currentTime: 0,
+        isPlaying: false,
+        zoomLevel: 100
+      },
+      selection: {
+        selectedElementId: null,
+        selectedTrackId: null,
+        selectionSource: null
+      },
+      assets: {},
+      tracks: createDefaultProjectTracks(),
+      elements: {},
       createdAt: now,
       updatedAt: now
     }

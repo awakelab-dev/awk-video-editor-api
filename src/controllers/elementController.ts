@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { isMongoConnected } from "../config/mongodb";
 import { HttpError } from "../errors/HttpError";
 import { projectExists } from "../services/projectService";
 import {
@@ -19,6 +20,12 @@ const isNonEmptyString = (value: unknown): value is string => {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const ensureMongoConnected = (): void => {
+  if (!isMongoConnected()) {
+    throw new HttpError(503, "INTERNAL_ERROR", "MongoDB is not connected", []);
+  }
 };
 
 const readTrackId = (value: unknown): string | null => {
@@ -66,6 +73,8 @@ export async function createElementHandler(
       ]);
     }
 
+    ensureMongoConnected();
+
     const validation = validateFrontendElementInput(req.body);
     if (!validation.ok) {
       throw new HttpError(400, "VALIDATION_ERROR", "Validation error", validation.errors);
@@ -104,6 +113,8 @@ export async function getElementsHandler(
         "projectId is required"
       ]);
     }
+
+    ensureMongoConnected();
 
     const exists = await projectExists(projectId);
     if (!exists) {

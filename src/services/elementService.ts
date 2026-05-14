@@ -1,5 +1,7 @@
 import { ObjectId } from "mongodb";
 import { getDb } from "../db/mongoClient";
+import { createDefaultProjectTracks } from "../domain/projects";
+import { HttpError } from "../errors/HttpError";
 import {
   AnyElement,
   ElementDoc,
@@ -16,6 +18,23 @@ import {
 import {
   insertElement
 } from "../repositories/elementRepository";
+
+type StoredTrack = {
+  id: string;
+  name: string;
+  type?: string;
+  elementIds: string[];
+  elements?: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+
+type ProjectElementCreateResult = {
+  projectId: string;
+  elementId: string;
+  type: string;
+  revision: number;
+  sessionId?: string | null;
+};
 
 const isPersistedElementDoc = (doc: ElementDoc): doc is PersistedElementDoc => {
   return "data" in doc;
@@ -132,10 +151,11 @@ async function createTextElement(
 async function addElementToProject(
   projectId: string,
   doc: PersistedElementDoc
-): Promise<void> {
+): Promise<ProjectElementCreateResult> {
   const db = getDb();
   const elementId = doc._id.toHexString();
   const now = new Date().toISOString();
+  const editorStatesCollection = db.collection("editor_states");
   const projectElement = {
     ...doc.data,
     id: elementId,
@@ -144,124 +164,211 @@ async function addElementToProject(
     updatedAt: now
   };
 
-  const result = await db.collection("projects").updateOne(
+  const projectsCollection = db.collection("projects");
+  const project = await projectsCollection.findOne({ id: projectId });
+  const editorState = await editorStatesCollection.findOne({ projectId });
+
+  if (!project) {
+    throw new HttpError(404, "NOT_FOUND", "Project not found", []);
+  }
+
+  const tracks = normalizeStoredTracks(project.tracks);
+  const trackIndex = tracks.findIndex((track) => track.id === doc.trackId);
+
+  if (trackIndex < 0) {
+    throw new HttpError(400, "VALIDATION_ERROR", "Validation error", [
+      `trackId ${doc.trackId} does not exist`
+    ]);
+  }
+
+  const elements =
+    typeof project.elements === "object" && project.elements !== null && !Array.isArray(project.elements)
+      ? { ...(project.elements as Record<string, unknown>) }
+      : {};
+
+  elements[elementId] = projectElement;
+
+  const track = tracks[trackIndex];
+  const currentElementIds = track.elementIds.filter((currentId) => currentId !== elementId);
+  const currentElements = Array.isArray(track.elements)
+    ? track.elements.filter((element) => element.id !== elementId)
+    : [];
+
+  tracks[trackIndex] = {
+    ...track,
+    elementIds: [...currentElementIds, elementId],
+    elements: [...currentElements, projectElement]
+  };
+
+  const currentProjectRevision = typeof project.revision === "number" ? project.revision : 0;
+  const currentEditorRevision =
+    editorState && typeof editorState.revision === "number" ? editorState.revision : 0;
+  const revision = Math.max(currentProjectRevision, currentEditorRevision) + 1;
+  const sessionId = editorState?.sessionId ?? project.sessionId ?? `session_${projectId}`;
+
+  await projectsCollection.updateOne(
     { id: projectId },
-    [
-      {
-        $set: {
-          elements: {
-            $mergeObjects: [
-              {
-                $cond: [
-                  {
-                    $eq: [{ $type: "$elements" }, "object"]
-                  },
-                  "$elements",
-                  {}
-                ]
-              },
-              {
-                [elementId]: projectElement
-              }
-            ]
-          },
-          tracks: {
-            $let: {
-              vars: {
-                existingTracks: {
-                  $cond: [{ $isArray: "$tracks" }, "$tracks", []]
-                }
-              },
-              in: {
-                $cond: [
-                  {
-                    $in: [
-                      doc.trackId,
-                      {
-                        $map: {
-                          input: "$$existingTracks",
-                          as: "track",
-                          in: "$$track.id"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    $map: {
-                      input: "$$existingTracks",
-                      as: "track",
-                      in: {
-                        $cond: [
-                          {
-                            $eq: ["$$track.id", doc.trackId]
-                          },
-                          {
-                            $mergeObjects: [
-                              "$$track",
-                              {
-                                elementIds: {
-                                  $concatArrays: [
-                                    {
-                                      $cond: [
-                                        { $isArray: "$$track.elementIds" },
-                                        "$$track.elementIds",
-                                        []
-                                      ]
-                                    },
-                                    [elementId]
-                                  ]
-                                },
-                                elements: {
-                                  $concatArrays: [
-                                    {
-                                      $cond: [
-                                        { $isArray: "$$track.elements" },
-                                        "$$track.elements",
-                                        []
-                                      ]
-                                    },
-                                    [projectElement]
-                                  ]
-                                }
-                              }
-                            ]
-                          },
-                          "$$track"
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    $concatArrays: [
-                      "$$existingTracks",
-                      [
-                        {
-                          id: doc.trackId,
-                          name: doc.trackId,
-                          type: doc.type,
-                          elementIds: [elementId],
-                          elements: [projectElement]
-                        }
-                      ]
-                    ]
-                  }
-                ]
-              }
-            }
-          },
-          updatedAt: now,
-          revision: {
-            $add: [{ $ifNull: ["$revision", 0] }, 1]
-          }
-        }
+    {
+      $set: {
+        elements,
+        tracks,
+        updatedAt: now,
+        revision
       }
-    ]
+    }
   );
 
-  if (result.matchedCount === 0) {
-    console.warn(
-      `[addElementToProject] Project not found: ${projectId}`
-    );
+  const editorTracks = addProjectElementToTracks(
+    normalizeStoredTracks(editorState?.tracks),
+    doc.trackId,
+    elementId,
+    projectElement
+  );
+
+  const editorSelection =
+    typeof editorState?.selection === "object" && editorState.selection !== null
+      ? editorState.selection
+      : project.selection;
+
+  await editorStatesCollection.updateOne(
+    { projectId },
+    {
+      $set: {
+        projectId,
+        revision,
+        sessionId,
+        playback: editorState?.playback ?? project.playback ?? {
+          currentTime: 0,
+          isPlaying: false,
+          zoomLevel: 100
+        },
+        selection: {
+          ...(typeof editorSelection === "object" && editorSelection !== null ? editorSelection : {}),
+          selectedElementId: elementId,
+          selectionSource: "element-library"
+        },
+        assets: Array.isArray(editorState?.assets) ? editorState.assets : [],
+        tracks: editorTracks,
+        updatedAt: now,
+        updatedBy: "system"
+      },
+      $setOnInsert: {
+        createdAt: now
+      }
+    },
+    { upsert: true }
+  );
+
+  return {
+    projectId,
+    elementId,
+    type: doc.type,
+    revision,
+    sessionId
+  };
+}
+
+function addProjectElementToTracks(
+  tracks: StoredTrack[],
+  trackId: string,
+  elementId: string,
+  projectElement: Record<string, unknown>
+): StoredTrack[] {
+  const nextTracks = tracks.map((track) => ({ ...track }));
+  const trackIndex = nextTracks.findIndex((track) => track.id === trackId);
+
+  if (trackIndex < 0) {
+    throw new HttpError(400, "VALIDATION_ERROR", "Validation error", [
+      `trackId ${trackId} does not exist`
+    ]);
+  }
+
+  const track = nextTracks[trackIndex];
+  const currentElementIds = track.elementIds.filter((currentId) => currentId !== elementId);
+  const currentElements = Array.isArray(track.elements)
+    ? track.elements.filter((element) => element.id !== elementId)
+    : [];
+
+  nextTracks[trackIndex] = {
+    ...track,
+    elementIds: [...currentElementIds, elementId],
+    elements: [...currentElements, projectElement]
+  };
+
+  return nextTracks;
+}
+
+function normalizeStoredTracks(value: unknown): StoredTrack[] {
+  const rawTracks = Array.isArray(value) ? value : [];
+  const tracks = rawTracks
+    .filter((track): track is Record<string, unknown> => {
+      return typeof track === "object" && track !== null && !Array.isArray(track);
+    })
+    .map((track): StoredTrack => ({
+      ...track,
+      id: typeof track.id === "string" ? track.id : "track-media",
+      name: typeof track.name === "string" ? track.name : String(track.id ?? "Media"),
+      type: typeof track.type === "string" ? track.type : undefined,
+      elementIds: getStoredTrackElementIds(track),
+      elements: Array.isArray(track.elements)
+        ? track.elements.filter((element): element is Record<string, unknown> => {
+            return typeof element === "object" && element !== null && !Array.isArray(element);
+          })
+        : []
+    }));
+
+  for (const defaultTrack of createDefaultProjectTracks()) {
+    if (!tracks.some((track) => track.id === defaultTrack.id)) {
+      tracks.push({
+        ...defaultTrack,
+        elements: []
+      });
+    }
+  }
+
+  return tracks;
+}
+
+function getStoredTrackElementIds(track: Record<string, unknown>): string[] {
+  if (Array.isArray(track.elementIds)) {
+    const elementIds = track.elementIds.filter((value): value is string => typeof value === "string");
+    if (elementIds.length > 0) {
+      return [...new Set(elementIds)];
+    }
+  }
+
+  if (!Array.isArray(track.elements)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      track.elements
+        .filter((element): element is Record<string, unknown> => {
+          return typeof element === "object" && element !== null && !Array.isArray(element);
+        })
+        .map((element) => element.id)
+        .filter((value): value is string => typeof value === "string")
+    )
+  ];
+}
+
+async function ensureProjectTrackExists(projectId: string, trackId: string): Promise<void> {
+  const db = getDb();
+  const project = await db.collection("projects").findOne(
+    { id: projectId },
+    { projection: { tracks: 1 } }
+  );
+
+  if (!project) {
+    throw new HttpError(404, "NOT_FOUND", "Project not found", []);
+  }
+
+  const hasTrack = normalizeStoredTracks(project.tracks).some((track) => track.id === trackId);
+  if (!hasTrack) {
+    throw new HttpError(400, "VALIDATION_ERROR", "Validation error", [
+      `trackId ${trackId} does not exist`
+    ]);
   }
 }
 
@@ -269,7 +376,9 @@ export async function createElement(
   projectId: string,
   input: AnyElement,
   trackId: string
-): Promise<ElementResponse> {
+): Promise<ProjectElementCreateResult> {
+  await ensureProjectTrackExists(projectId, trackId);
+
   const now = new Date();
 
   const doc: PersistedElementDoc = {
@@ -283,18 +392,14 @@ export async function createElement(
   };
 
   await insertElement(doc);
-  console.log("ADDING TO PROJECT", projectId);
-  await addElementToProject(projectId, doc);
-  console.log("PROJECT UPDATE RESULT");
-
-  return toResponse(doc);
+  return addElementToProject(projectId, doc);
 }
 
 export async function createElementFromFrontend(
   projectId: string,
   input: FrontendElementInput,
   trackId: string
-): Promise<ElementResponse> {
+): Promise<ProjectElementCreateResult> {
   return createElement(projectId, input, trackId);
 }
 

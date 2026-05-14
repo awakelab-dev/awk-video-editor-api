@@ -277,7 +277,17 @@ function buildRevisionFilter(projectId: string, revision: number): Record<string
 }
 
 export async function projectExists(projectId: string): Promise<boolean> {
-  return projectId !== "not-found";
+  const db = getMongoDb();
+  if (!db) {
+    return false;
+  }
+
+  const project = await db.collection("projects").findOne(
+    { id: projectId },
+    { projection: { _id: 1 } }
+  );
+
+  return Boolean(project);
 }
 
 export async function patchProject(

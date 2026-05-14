@@ -91,6 +91,14 @@ const shapeKeys = [
   ...baseKeys,
   "x",
   "y",
+  "width",
+  "height",
+  "rotation",
+  "shapeType",
+  "fillColor",
+  "strokeColor",
+  "strokeWidth",
+  "cornerRadius",
   ...legacyCompatibleKeys
 ] as const;
 
@@ -143,8 +151,8 @@ const validateBaseFields = (
   body: Record<string, unknown>,
   errors: string[]
 ): void => {
-  if (!isNonEmptyString(body.id)) {
-    errors.push("id is required");
+  if (body.id !== undefined && !isNonEmptyString(body.id)) {
+    errors.push("id must be a non-empty string when provided");
   }
 
   if (!isElementType(body.type)) {
@@ -210,14 +218,19 @@ const buildBaseElement = <TType extends ElementType>(
   body: Record<string, unknown>,
   type: TType
 ): BaseElement & { type: TType } => {
-  return {
-    id: body.id as string,
+  const element: BaseElement & { type: TType } = {
     type,
     name: body.name as string,
     startTime: body.startTime as number,
     duration: body.duration as number,
-    opacity: (body.opacity as number | undefined) ?? 1
+    opacity: (body.opacity as number | undefined) ?? 100
   };
+
+  if (isNonEmptyString(body.id)) {
+    element.id = body.id;
+  }
+
+  return element;
 };
 
 const buildTextElement = (body: Record<string, unknown>): TextElement => {
@@ -284,9 +297,18 @@ const buildAudioElement = (body: Record<string, unknown>): AudioElement => {
 
 const buildShapeElement = (body: Record<string, unknown>): ShapeElement => {
   return {
+    ...body,
     ...buildBaseElement(body, "shape"),
     x: body.x as number,
-    y: body.y as number
+    y: body.y as number,
+    width: body.width as number,
+    height: body.height as number,
+    rotation: body.rotation as number,
+    shapeType: body.shapeType as ShapeElement["shapeType"],
+    fillColor: body.fillColor as string,
+    strokeColor: body.strokeColor as string,
+    strokeWidth: body.strokeWidth as number,
+    cornerRadius: body.cornerRadius as number
   };
 };
 
@@ -303,7 +325,7 @@ export function validateFrontendElementInput(body: unknown): ValidationResult {
   const allowedKeys = isElementType(body.type)
     ? allowedKeysByType[body.type]
     : allKnownKeys;
-  const unknownKeys = getUnknownKeys(body, allowedKeys);
+  const unknownKeys = body.type === "shape" ? [] : getUnknownKeys(body, allowedKeys);
 
   if (unknownKeys.length > 0) {
     errors.push(`Unknown field(s): ${unknownKeys.join(", ")}`);
@@ -423,7 +445,27 @@ export function validateFrontendElementInput(body: unknown): ValidationResult {
       break;
 
     case "shape":
-      validatePositionFields(body, errors);
+      validateFramedFields(body, errors);
+
+      if (!isNonEmptyString(body.shapeType)) {
+        errors.push("shapeType is required");
+      }
+
+      if (!isNonEmptyString(body.fillColor)) {
+        errors.push("fillColor is required");
+      }
+
+      if (!isNonEmptyString(body.strokeColor)) {
+        errors.push("strokeColor is required");
+      }
+
+      if (!isNumber(body.strokeWidth)) {
+        errors.push("strokeWidth must be a number");
+      }
+
+      if (!isNumber(body.cornerRadius)) {
+        errors.push("cornerRadius must be a number");
+      }
       break;
   }
 

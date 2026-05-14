@@ -3,6 +3,7 @@ const test = require('node:test')
 
 const {
   buildInitialEditorState,
+  createDefaultProjectTracks,
   generateProjectId,
   normalizeCreateProjectPayload,
   toApiProject,
@@ -62,6 +63,20 @@ test('maps stored project to public API project without exposing Mongo _id', () 
     name: 'Demo',
     duration: 0,
     resolution: { w: 1920, h: 1080 },
+    revision: 0,
+    playback: {
+      currentTime: 0,
+      isPlaying: false,
+      zoomLevel: 100
+    },
+    selection: {
+      selectedElementId: null,
+      selectedTrackId: null,
+      selectionSource: null
+    },
+    assets: {},
+    tracks: createDefaultProjectTracks(),
+    elements: {},
     createdAt: '2026-04-27T10:30:00.000Z',
     updatedAt: '2026-04-27T10:30:00.000Z'
   })
@@ -94,7 +109,77 @@ test('builds initial editor state required by the frontend', () => {
       selectionSource: null
     },
     assets: [],
-    tracks: [],
+    tracks: createDefaultProjectTracks(),
     updatedAt: '2026-04-27T10:30:00.000Z'
   })
+})
+
+test('normalizes project track relationships for frontend timeline restore', () => {
+  const apiProject = toApiProject({
+    id: 'proj_abc',
+    name: 'Demo',
+    duration: 5,
+    resolution: { w: 1920, h: 1080 },
+    revision: 3,
+    tracks: [
+      {
+        id: 'track-media',
+        name: 'Media',
+        type: 'mixed',
+        elementIds: []
+      }
+    ],
+    elements: {
+      shape_abc: {
+        id: 'shape_abc',
+        trackId: 'track-media',
+        type: 'shape',
+        name: 'Rectangulo',
+        startTime: 0,
+        duration: 5,
+        opacity: 100
+      }
+    },
+    createdAt: '2026-04-27T10:30:00.000Z',
+    updatedAt: '2026-04-27T10:30:00.000Z'
+  })
+
+  assert.equal(apiProject.elements.shape_abc.type, 'shape')
+  assert.deepEqual(apiProject.tracks[0].elementIds, ['shape_abc'])
+})
+
+test('derives track elementIds from legacy track elements arrays', () => {
+  const apiProject = toApiProject({
+    id: 'proj_abc',
+    name: 'Demo',
+    duration: 5,
+    resolution: { w: 1920, h: 1080 },
+    tracks: [
+      {
+        id: 'track-media',
+        name: 'Media',
+        type: 'mixed',
+        elements: [
+          {
+            id: 'shape_abc',
+            type: 'shape',
+            name: 'Rectangulo'
+          }
+        ]
+      }
+    ],
+    elements: {
+      shape_abc: {
+        id: 'shape_abc',
+        type: 'shape',
+        name: 'Rectangulo'
+      }
+    },
+    createdAt: '2026-04-27T10:30:00.000Z',
+    updatedAt: '2026-04-27T10:30:00.000Z'
+  })
+
+  assert.deepEqual(apiProject.tracks[0].elementIds, ['shape_abc'])
+  assert.ok(apiProject.tracks.some((track) => track.id === 'track-text'))
+  assert.ok(apiProject.tracks.some((track) => track.id === 'track-audio'))
 })

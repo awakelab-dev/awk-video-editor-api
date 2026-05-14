@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 export type ErrorCode = "VALIDATION_ERROR" | "NOT_FOUND" | "INTERNAL_ERROR";
 
 export interface SuccessResponse<T> {
+  success: true;
   data: T;
   meta: {
     requestId: string;
@@ -27,6 +28,7 @@ export function createRequestId(): string {
 
 export function successResponse<T>(data: T, requestId: string): SuccessResponse<T> {
   return {
+    success: true,
     data,
     meta: {
       requestId,
