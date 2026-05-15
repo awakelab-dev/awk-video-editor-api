@@ -13,10 +13,17 @@ export async function connectMongo(): Promise<void> {
   client = new MongoClient(env.MONGODB_URI)
   await client.connect()
   database = client.db(env.MONGODB_DB_NAME)
+  await ensureIndexes(database)
   //await database.collection('projects').createIndex({ id: 1 }, { unique: true })
   //await database.collection('editor_states').createIndex({ projectId: 1 }, { unique: true })
   //await database.collection('project_snapshots').createIndex({ projectId: 1 }, { unique: true })
   connected = true
+}
+
+export async function ensureIndexes(db: any): Promise<void> {
+  await db.collection('users').createIndex({ id: 1 }, { unique: true })
+  await db.collection('users').createIndex({ email: 1 }, { unique: true })
+  await db.collection('users').createIndex({ username: 1 }, { unique: true })
 }
 
 export function getMongoDb(): Db | null {
@@ -56,4 +63,9 @@ export async function closeMongoConnection(): Promise<void> {
   client = null
   database = null
   connected = false
+}
+
+export function __setTestMongoState(db: any, isConnected = true) {
+  database = db as Db
+  connected = isConnected
 }
