@@ -5,6 +5,7 @@ import {
   ElementRemoveFromTrackChange,
   ElementUpdateChange,
   patchProject,
+  renameProject,
   ProjectPatchChange,
   ProjectPatchInput
 } from "../services/projectService";
@@ -29,6 +30,32 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 const isNonEmptyString = (value: unknown): value is string => {
   return typeof value === "string" && value.trim().length > 0;
 };
+
+const isRenameProjectPayload = (body: unknown): body is Record<string, unknown> => {
+  return isRecord(body) && Object.prototype.hasOwnProperty.call(body, "name");
+};
+
+function validateRenameProjectPayload(body: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  if (!isRecord(body)) {
+    return [{ field: "body", message: "Body must be a JSON object" }];
+  }
+
+  for (const key of Object.keys(body)) {
+    if (key !== "name") {
+      errors.push({ field: key, message: `${key} is not allowed when renaming a project` });
+    }
+  }
+
+  if (typeof body.name !== "string" || body.name.trim().length === 0) {
+    errors.push({ field: "name", message: "Name is required" });
+  } else if (body.name.trim().length > 120) {
+    errors.push({ field: "name", message: "Name must be between 1 and 120 characters" });
+  }
+
+  return errors;
+}
 
 function validatePatchPayload(body: unknown): ValidationError[] {
   const errors: ValidationError[] = [];
@@ -218,6 +245,45 @@ export async function patchProjectHandler(
     const projectId = req.params.projectId;
     if (!projectId || typeof projectId !== "string") {
       res.status(400).json({ success: false, message: "projectId is required" });
+      return;
+    }
+
+    if (isRenameProjectPayload(req.body)) {
+      const validationErrors = validateRenameProjectPayload(req.body);
+      if (validationErrors.length > 0) {
+        res.status(422).json({
+          success: false,
+          message: "Validation failed",
+          errors: validationErrors
+        });
+        return;
+      }
+
+      const projectName = req.body.name;
+      if (typeof projectName !== "string") {
+        res.status(422).json({
+          success: false,
+          message: "Validation failed",
+          errors: [{ field: "name", message: "Name is required" }]
+        });
+        return;
+      }
+
+      const result = await renameProject(projectId, {
+        name: projectName.trim()
+      });
+      if (!result.ok) {
+        res.status(result.status).json({
+          success: false,
+          message: result.message
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: result.data
+      });
       return;
     }
 

@@ -1,4 +1,5 @@
 import { getMongoDb } from "../config/mongodb";
+import { ApiProject, ProjectDocument, toApiProject } from "../domain/projects";
 
 export type ElementUpdateChange = {
   type: "element.update";
@@ -47,6 +48,21 @@ export type ProjectPatchResult =
   | {
       ok: true;
       data: ProjectPatchResponse;
+    }
+  | {
+      ok: false;
+      status: number;
+      message: string;
+    };
+
+export type ProjectRenameInput = {
+  name: string;
+};
+
+export type ProjectRenameResult =
+  | {
+      ok: true;
+      data: ApiProject;
     }
   | {
       ok: false;
@@ -288,6 +304,71 @@ export async function projectExists(projectId: string): Promise<boolean> {
   );
 
   return Boolean(project);
+}
+
+export async function renameProject(
+  projectId: string,
+  input: ProjectRenameInput
+): Promise<ProjectRenameResult> {
+  const db = getMongoDb();
+  if (!db) {
+    return {
+      ok: false,
+      status: 503,
+      message: "MongoDB is not connected"
+    };
+  }
+
+  const projectsCollection: any = db.collection("projects");
+  const project = await projectsCollection.findOne({ id: projectId });
+
+  if (!project || !isRecord(project)) {
+    return {
+      ok: false,
+      status: 404,
+      message: "Project not found"
+    };
+  }
+
+  const now = new Date().toISOString();
+  const result = await projectsCollection.updateOne(
+    { id: projectId },
+    {
+      $set: {
+        name: input.name,
+        updatedAt: now
+      },
+      $inc: {
+        revision: 1
+      }
+    }
+  );
+
+  if (result.matchedCount === 0) {
+    return {
+      ok: false,
+      status: 404,
+      message: "Project not found"
+    };
+  }
+
+  const updatedProject = await projectsCollection.findOne(
+    { id: projectId },
+    { projection: { _id: 0 } }
+  );
+
+  if (!updatedProject || !isRecord(updatedProject)) {
+    return {
+      ok: false,
+      status: 404,
+      message: "Project not found"
+    };
+  }
+
+  return {
+    ok: true,
+    data: toApiProject(updatedProject as ProjectDocument)
+  };
 }
 
 export async function patchProject(
