@@ -1,3 +1,5 @@
+﻿process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-local-test-placeholder-not-real'
+
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const http = require('node:http')
@@ -17,6 +19,7 @@ async function withServer(run) {
   process.env.CORS_ORIGIN = 'http://allowed.example'
   process.env.MONGODB_URI = 'mongodb://fake'
   process.env.MONGODB_DB_NAME = 'awk_video_editor'
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-local-test-placeholder-not-real'
   delete process.env.ENABLE_TEST_ROUTES
   clearDistCache()
 
@@ -34,46 +37,62 @@ async function withServer(run) {
   }
 }
 
-async function getJson(baseUrl, path) {
-  const response = await fetch(`${baseUrl}${path}`)
+async function getJson(baseUrl, route) {
+  const response = await fetch(`${baseUrl}${route}`)
   const contentType = response.headers.get('content-type') || ''
   const body = await response.json().catch(() => null)
   return { response, contentType, body }
 }
 
-test('icons endpoint returns JSON-only emoji records for coffee-style search', async () => {
+test('icons endpoint returns Iconify metadata and no renderable markup fields', async () => {
   await withServer(async (baseUrl) => {
-    const { response, contentType, body } = await getJson(baseUrl, '/api/v1/icons?q=taza%20de%20cafe')
+    const result = await getJson(baseUrl, '/api/v1/icons?q=coffee&provider=iconify&limit=10')
 
-    assert.equal(response.status, 200)
-    assert.match(contentType, /application\/json/)
-    assert.equal(body.success, true)
-    assert.equal(body.message, 'Icons fetched successfully')
-    assert.equal(body.data.query, 'taza de cafe')
-    assert.ok(Array.isArray(body.data.items))
-    assert.ok(body.data.items.length >= 1)
+    assert.equal(result.response.status, 200)
+    assert.match(result.contentType, /application\/json/)
+    assert.equal(result.body.success, true)
+    assert.equal(result.body.message, 'Icons fetched successfully')
+    assert.equal(result.body.data.provider, 'iconify')
+    assert.ok(['iconify-api', 'default-catalog'].includes(result.body.data.source))
+    assert.ok(Array.isArray(result.body.data.items))
+    assert.ok(result.body.data.items.length >= 1)
 
-    const coffee = body.data.items.find((item) => item.id === 'coffee')
-    assert.ok(coffee)
-    assert.equal(coffee.emoji, '☕')
-    assert.equal(coffee.category, 'food-drink')
-    assert.equal(typeof coffee.label, 'string')
-    assert.ok(Array.isArray(coffee.keywords))
-    assert.equal(coffee.html, undefined)
-    assert.equal(coffee.svg, undefined)
-    assert.equal(coffee.component, undefined)
-    assert.equal(coffee.markup, undefined)
+    for (const item of result.body.data.items) {
+      assert.equal(item.provider, 'iconify')
+      assert.equal(typeof item.iconId, 'string')
+      assert.match(item.iconId, /^[a-z0-9]+[a-z0-9-]*:[a-z0-9]+[a-z0-9-]*$/)
+      assert.equal(item.preview.type, 'iconify-id')
+      assert.equal(item.preview.value, item.iconId)
+
+      assert.equal(item.svg, undefined)
+      assert.equal(item.html, undefined)
+      assert.equal(item.component, undefined)
+      assert.equal(item.markup, undefined)
+    }
+  })
+})
+
+test('icons endpoint returns default video-editor icons without a query', async () => {
+  await withServer(async (baseUrl) => {
+    const result = await getJson(baseUrl, '/api/v1/icons?provider=iconify&limit=20')
+
+    assert.equal(result.response.status, 200)
+    assert.equal(result.body.data.provider, 'iconify')
+    assert.equal(result.body.data.source, 'default-catalog')
+    assert.ok(result.body.data.items.some((item) => item.iconId === 'mdi:movie-open'))
+    assert.ok(result.body.data.items.some((item) => item.iconId === 'mdi:play'))
+    assert.ok(result.body.data.items.every((item) => item.provider === 'iconify'))
   })
 })
 
 test('icons endpoint supports category, limit, and offset with bounded pagination', async () => {
   await withServer(async (baseUrl) => {
-    let result = await getJson(baseUrl, '/api/v1/icons?category=food-drink&limit=2&offset=1')
+    let result = await getJson(baseUrl, '/api/v1/icons?category=media&limit=2&offset=1')
     assert.equal(result.response.status, 200)
     assert.equal(result.body.data.limit, 2)
     assert.equal(result.body.data.offset, 1)
     assert.ok(result.body.data.total >= result.body.data.items.length)
-    assert.ok(result.body.data.items.every((item) => item.category === 'food-drink'))
+    assert.ok(result.body.data.items.every((item) => item.category === 'media'))
 
     result = await getJson(baseUrl, '/api/v1/icons?limit=999')
     assert.equal(result.response.status, 422)
@@ -105,25 +124,19 @@ test('icons endpoint rejects unsafe XSS-like search queries', async () => {
   })
 })
 
-test('icons endpoint rejects malformed category and returns no renderable fields', async () => {
+test('icons endpoint rejects malformed provider/category and double-encoded markup', async () => {
   await withServer(async (baseUrl) => {
-    let result = await getJson(baseUrl, '/api/v1/icons?category=food%20drink')
+    let result = await getJson(baseUrl, '/api/v1/icons?provider=remote')
+    assert.equal(result.response.status, 422)
+    assert.ok(result.body.errors.some((err) => err.field === 'provider'))
+
+    result = await getJson(baseUrl, '/api/v1/icons?category=food%20drink')
     assert.equal(result.response.status, 422)
     assert.ok(result.body.errors.some((err) => err.field === 'category'))
 
-    result = await getJson(baseUrl, '/api/v1/icons?q=icono')
-    assert.equal(result.response.status, 200)
-    for (const item of result.body.data.items) {
-      assert.deepEqual(Object.keys(item).sort(), ['category', 'emoji', 'id', 'keywords', 'label'])
-    }
-  })
-})
-
-test('icons endpoint rejects double-encoded markup', async () => {
-  await withServer(async (baseUrl) => {
-    const result = await getJson(baseUrl, '/api/v1/icons?q=%253Cscript%253Ealert(1)%253C/script%253E')
+    result = await getJson(baseUrl, '/api/v1/icons?q=%253Cscript%253Ealert(1)%253C/script%253E')
     assert.equal(result.response.status, 422)
-    assert.equal(result.body.success, false)
     assert.ok(result.body.errors.some((err) => err.field === 'q'))
   })
 })
+

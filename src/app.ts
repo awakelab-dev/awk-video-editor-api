@@ -1,5 +1,5 @@
 import cors from 'cors'
-import express, { Request, Response, NextFunction } from 'express'
+import express, { ErrorRequestHandler } from 'express'
 import { testRouter } from './routes/test.route'
 import chatRoutes from './routes/chat'
 import editorStateRoutes from './routes/editorState'
@@ -32,15 +32,19 @@ app.get('/health', (_request, response) => {
 
 app.use('/api', testRouter)
 
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  res.status(err.status || 500).json({
+const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  const status = typeof err.status === 'number' ? err.status : 500
+
+  res.status(status).json({
     error: {
       code: err.code || 'INTERNAL_ERROR',
-      message: err.message,
+      message: err.message || 'Internal server error',
       details: err.details || [],
     },
     meta: {
       requestId: 'dev-id',
     },
   })
-})
+}
+
+app.use(errorHandler)
