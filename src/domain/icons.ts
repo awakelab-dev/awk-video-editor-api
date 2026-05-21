@@ -1,4 +1,6 @@
-export type IconProvider = 'iconify'
+import { translateQueryToEnglish, TranslationFetch, TranslationResult } from './iconTranslation'
+
+export type IconProvider = 'iconify' | 'nounproject'
 
 export type IconSearchParams = {
   q?: string
@@ -8,37 +10,59 @@ export type IconSearchParams = {
   offset?: number
 }
 
+export type IconPreview = {
+  type: 'svg-url' | 'thumbnail-url'
+  url: string
+  value?: string
+}
+
 export type IconRecord = {
   id: string
   provider: IconProvider
   iconId: string
-  prefix: string
+  prefix: string | null
   name: string
   label: string
   category: string
   tags: string[]
   license: string | null
-  preview: {
-    type: 'iconify-id'
-    value: string
-  }
+  attribution?: string | null
+  preview: IconPreview
 }
 
 export type IconSearchResult = {
   provider: IconProvider
-  source: 'iconify-api' | 'default-catalog'
+  source: 'iconify-api' | 'nounproject-api' | 'default-catalog'
   items: IconRecord[]
   total: number
   limit: number
   offset: number
+  originalQuery: string
+  translatedQuery: string
+  translation: TranslationResult['translation']
 }
 
-export type IconFetch = (url: string, init?: { headers?: Record<string, string> }) => Promise<{
+export type IconFetch = (url: string, init?: {
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+}) => Promise<{
   ok: boolean
   status: number
   headers?: { get(name: string): string | null }
   json(): Promise<any>
 }>
+
+export class IconProviderConfigurationError extends Error {
+  status = 503
+  code = 'ICON_PROVIDER_NOT_CONFIGURED'
+  details: Array<{ field: string, message: string }>
+
+  constructor(message: string, details: Array<{ field: string, message: string }> = []) {
+    super(message)
+    this.details = details
+  }
+}
 
 const MAX_QUERY_LENGTH = 64
 const MAX_CATEGORY_LENGTH = 32
@@ -47,7 +71,8 @@ const MAX_LIMIT = 100
 const MAX_UPSTREAM_RESULTS = 100
 
 const ICONIFY_SEARCH_URL = 'https://api.iconify.design/search'
-const PROVIDER_PATTERN = /^iconify$/
+const NOUN_PROJECT_SEARCH_URL = 'https://api.thenounproject.com/v2/icon'
+const PROVIDER_PATTERN = /^(iconify|nounproject)$/
 const CATEGORY_PATTERN = /^[a-z0-9-]+$/
 const ICONIFY_ID_PATTERN = /^[a-z0-9]+[a-z0-9-]*:[a-z0-9]+[a-z0-9-]*$/
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
@@ -79,25 +104,30 @@ const DEFAULT_ICONIFY_CATALOG: IconRecord[] = [
   createDefaultIcon('mdi:close', 'Close', 'status', ['close', 'cancel', 'error', 'cerrar']),
   createDefaultIcon('mdi:heart', 'Heart', 'objects', ['heart', 'love', 'like', 'corazon', 'corazón']),
   createDefaultIcon('mdi:coffee', 'Coffee', 'objects', ['coffee', 'cafe', 'café', 'cup', 'mug', 'taza', 'bebida']),
+  createDefaultIcon('mdi:bicycle', 'Bicycle', 'objects', ['bicycle', 'bike', 'bicicleta', 'bici']),
+  createDefaultIcon('mdi:lamp', 'Lamp', 'objects', ['lamp', 'light', 'lampara', 'lámpara', 'yellow lamp']),
+  createDefaultIcon('mdi:brick-wall', 'Brick Wall', 'objects', ['brick', 'bricks', 'construction', 'ladrillo', 'construccion']),
 ]
 
-export function validateIconSearchParams(raw: any) {
+export function validateIconSearchParams(raw: any, providerOverride?: IconProvider) {
   const errors: Array<{ field: string, message: string }> = []
   const normalized: Required<IconSearchParams> = {
     q: '',
-    provider: 'iconify',
+    provider: providerOverride || 'iconify',
     category: '',
     limit: DEFAULT_LIMIT,
     offset: 0,
   }
 
-  if (raw.provider !== undefined) {
+  if (providerOverride) {
+    normalized.provider = providerOverride
+  } else if (raw.provider !== undefined) {
     if (typeof raw.provider !== 'string') {
       errors.push({ field: 'provider', message: 'provider must be a string' })
     } else {
       const value = normalizePublicInput(raw.provider).toLowerCase()
       if (!PROVIDER_PATTERN.test(value)) {
-        errors.push({ field: 'provider', message: 'provider must be iconify' })
+        errors.push({ field: 'provider', message: 'provider must be iconify or nounproject' })
       } else {
         normalized.provider = value as IconProvider
       }
@@ -137,13 +167,33 @@ export function validateIconSearchParams(raw: any) {
   return { errors, params: normalized }
 }
 
-export async function searchIcons(rawParams: Required<IconSearchParams>, iconFetch: IconFetch = defaultFetch): Promise<IconSearchResult> {
-  const localResult = searchDefaultCatalog(rawParams)
+export async function searchIcons(
+  rawParams: Required<IconSearchParams>,
+  iconFetch: IconFetch = defaultFetch,
+  translationFetch: TranslationFetch = defaultFetch,
+): Promise<IconSearchResult> {
+  const translated = await translateQueryToEnglish(rawParams.q, translationFetch)
+  const translatedQuery = normalizePublicInput(translated.translatedQuery)
 
-  if (!rawParams.q) return localResult
+  if (translatedQuery.length > MAX_QUERY_LENGTH) {
+    throwValidationError('translatedQuery', `translatedQuery must be at most ${MAX_QUERY_LENGTH} characters`)
+  }
+  if (hasUnsafePublicText(translatedQuery)) {
+    throwValidationError('translatedQuery', 'translatedQuery contains unsafe content')
+  }
+
+  const searchParams = { ...rawParams, q: translatedQuery }
+
+  if (rawParams.provider === 'nounproject') {
+    return searchNounProject(searchParams, translated, iconFetch)
+  }
+
+  const localResult = searchDefaultCatalog(searchParams, translated)
+
+  if (!searchParams.q) return localResult
 
   try {
-    const upstream = await searchIconify(rawParams, iconFetch)
+    const upstream = await searchIconify(searchParams, translated, iconFetch)
     if (upstream.items.length > 0) return upstream
     return localResult
   } catch {
@@ -151,7 +201,7 @@ export async function searchIcons(rawParams: Required<IconSearchParams>, iconFet
   }
 }
 
-export function searchDefaultCatalog(rawParams: Required<IconSearchParams>): IconSearchResult {
+export function searchDefaultCatalog(rawParams: Required<IconSearchParams>, translated?: TranslationResult): IconSearchResult {
   const q = normalizeSearchText(rawParams.q ?? '')
   const category = normalizeSearchText(rawParams.category ?? '')
   const limit = rawParams.limit ?? DEFAULT_LIMIT
@@ -172,10 +222,11 @@ export function searchDefaultCatalog(rawParams: Required<IconSearchParams>): Ico
     total: filtered.length,
     limit,
     offset,
+    ...translationFields(translated, rawParams.q),
   }
 }
 
-async function searchIconify(rawParams: Required<IconSearchParams>, iconFetch: IconFetch): Promise<IconSearchResult> {
+async function searchIconify(rawParams: Required<IconSearchParams>, translated: TranslationResult, iconFetch: IconFetch): Promise<IconSearchResult> {
   const limit = Math.min(rawParams.limit, MAX_UPSTREAM_RESULTS)
   const offset = rawParams.offset
   const url = new URL(ICONIFY_SEARCH_URL)
@@ -202,6 +253,54 @@ async function searchIconify(rawParams: Required<IconSearchParams>, iconFetch: I
     total: Number.isInteger(payload?.total) && payload.total >= 0 ? payload.total : items.length,
     limit,
     offset,
+    ...translationFields(translated, rawParams.q),
+  }
+}
+
+async function searchNounProject(rawParams: Required<IconSearchParams>, translated: TranslationResult, iconFetch: IconFetch): Promise<IconSearchResult> {
+  const apiKey = (process.env.NOUN_PROJECT_API_KEY || '').trim()
+  const apiSecret = (process.env.NOUN_PROJECT_API_SECRET || '').trim()
+
+  if (!apiKey || !apiSecret) {
+    throw new IconProviderConfigurationError('Noun Project provider is not configured', [
+      { field: 'NOUN_PROJECT_API_KEY', message: 'NOUN_PROJECT_API_KEY is required for provider=nounproject' },
+      { field: 'NOUN_PROJECT_API_SECRET', message: 'NOUN_PROJECT_API_SECRET is required for provider=nounproject' },
+    ])
+  }
+
+  const limit = Math.min(rawParams.limit, MAX_UPSTREAM_RESULTS)
+  const offset = rawParams.offset
+  const url = new URL(NOUN_PROJECT_SEARCH_URL)
+  url.searchParams.set('query', rawParams.q)
+  url.searchParams.set('limit', String(limit))
+  url.searchParams.set('offset', String(offset))
+  url.searchParams.set('thumbnail_size', '200')
+
+  const response = await iconFetch(url.toString(), {
+    headers: {
+      accept: 'application/json',
+      // Kept configurable for the real provider integration. Tests mock this call.
+      authorization: `Bearer ${apiKey}:${apiSecret}`,
+    },
+  })
+
+  if (!response.ok) throw new Error(`Noun Project search failed: ${response.status}`)
+
+  const payload = await response.json()
+  const rawIcons: unknown[] = Array.isArray(payload?.icons) ? payload.icons : Array.isArray(payload?.items) ? payload.items : []
+  const items = rawIcons
+    .map(nounProjectIconToRecord)
+    .filter((record): record is IconRecord => Boolean(record))
+    .slice(0, limit)
+
+  return {
+    provider: 'nounproject',
+    source: 'nounproject-api',
+    items,
+    total: safeTotal(payload, items.length),
+    limit,
+    offset,
+    ...translationFields(translated, rawParams.q),
   }
 }
 
@@ -232,8 +331,43 @@ function iconifyIdToRecord(iconId: string): IconRecord | null {
     tags: uniqueTags([prefix, ...name.split(/[-_]+/g)]),
     license: null,
     preview: {
-      type: 'iconify-id',
+      type: 'svg-url',
       value: iconId,
+      url: iconifySvgUrl(prefix, name),
+    },
+  }
+}
+
+function nounProjectIconToRecord(raw: any): IconRecord | null {
+  const rawId = raw?.id ?? raw?.icon_id ?? raw?.iconId
+  const id = normalizePublicInput(String(rawId || ''))
+  if (!/^\d+$/.test(id)) return null
+
+  const label = safeText(raw?.term || raw?.name || raw?.label || `Icon ${id}`)
+  const thumbnailUrl = safeUrl(raw?.thumbnail_url || raw?.thumbnailUrl || raw?.preview_url || raw?.previewUrl)
+  if (!thumbnailUrl) return null
+
+  const tags = Array.isArray(raw?.tags)
+    ? raw.tags.map((tag: any) => safeText(typeof tag === 'string' ? tag : tag?.slug || tag?.name)).filter(Boolean)
+    : []
+
+  const attribution = safeText(raw?.attribution || raw?.attribution_preview_url || raw?.creator?.name || '') || null
+  const license = safeText(raw?.license_description || raw?.license || raw?.license_type || '') || null
+
+  return {
+    id: `noun:${id}`,
+    provider: 'nounproject',
+    iconId: `noun:${id}`,
+    prefix: 'noun',
+    name: normalizeSearchText(label).replace(/\s+/g, '-'),
+    label,
+    category: 'nounproject',
+    tags: uniqueTags(tags.length > 0 ? tags : [label]),
+    license,
+    attribution,
+    preview: {
+      type: 'thumbnail-url',
+      url: thumbnailUrl,
     },
   }
 }
@@ -251,8 +385,9 @@ function createDefaultIcon(iconId: string, label: string, category: string, tags
     tags: uniqueTags(tags),
     license: null,
     preview: {
-      type: 'iconify-id',
+      type: 'svg-url',
       value: iconId,
+      url: iconifySvgUrl(prefix, name),
     },
   }
 }
@@ -299,7 +434,7 @@ function normalizeSearchText(value: string) {
 }
 
 function uniqueTags(tags: string[]) {
-  return [...new Set(tags.map((tag) => normalizeSearchText(tag)).filter(Boolean))]
+  return [...new Set(tags.map((tag) => normalizeSearchText(tag)).filter(Boolean).filter((tag) => !hasUnsafePublicText(tag)))]
 }
 
 function titleCase(value: string) {
@@ -319,11 +454,68 @@ function inferCategory(name: string) {
   return 'iconify'
 }
 
+function iconifySvgUrl(prefix: string, name: string) {
+  return `https://api.iconify.design/${prefix}/${name}.svg`
+}
+
+function safeUrl(value: any) {
+  if (typeof value !== 'string') return null
+  const normalized = normalizePublicInput(value)
+  if (hasUnsafePublicText(normalized)) return null
+  try {
+    const url = new URL(normalized)
+    if (url.protocol !== 'https:') return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+function safeText(value: any) {
+  if (typeof value !== 'string') return ''
+  const normalized = normalizePublicInput(value)
+  if (!normalized || hasUnsafePublicText(normalized)) return ''
+  return normalized
+}
+
+function safeTotal(payload: any, fallback: number) {
+  const total = payload?.total
+  return Number.isInteger(total) && total >= 0 ? total : fallback
+}
+
+function translationFields(translated: TranslationResult | undefined, fallbackQuery: string) {
+  if (translated) {
+    return {
+      originalQuery: translated.originalQuery,
+      translatedQuery: translated.translatedQuery,
+      translation: translated.translation,
+    }
+  }
+  return {
+    originalQuery: fallbackQuery || '',
+    translatedQuery: fallbackQuery || '',
+    translation: {
+      provider: 'none' as const,
+      target: 'en' as const,
+      detectedSourceLanguage: null,
+      usedFallback: false,
+    },
+  }
+}
+
+function throwValidationError(field: string, message: string): never {
+  const error = new Error('Validation failed') as Error & { status: number, code: string, details: Array<{ field: string, message: string }> }
+  error.status = 422
+  error.code = 'VALIDATION_ERROR'
+  error.details = [{ field, message }]
+  throw error
+}
+
 export function listIconCategories() {
   return [...new Set(DEFAULT_ICONIFY_CATALOG.map((record) => record.category))].sort()
 }
 
-async function defaultFetch(url: string, init?: { headers?: Record<string, string> }) {
+async function defaultFetch(url: string, init?: { method?: string, headers?: Record<string, string>, body?: string }) {
   if (typeof fetch !== 'function') throw new Error('Global fetch is not available')
   return fetch(url, init) as any
 }
