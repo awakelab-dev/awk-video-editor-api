@@ -33,7 +33,7 @@ Important values:
 - `PORT=4000`
 - `MONGODB_URI`
 - `MONGODB_DB_NAME`
-- `OPENAI_API_KEY` (optional, required for `/api/chat`)
+- `OPENAI_API_KEY` (optional, required for `/api/chat` and `/api/subtitles`)
 - `PEXELS_API_KEY` (optional, required for `/api/images`)
 
 ## Local setup
@@ -47,6 +47,7 @@ npm run dev
 ### URLs
 - Health: `http://localhost:4000/health`
 - API base: `http://localhost:4000/api/v1`
+- Subtitles (Whisper): `POST http://localhost:4000/api/subtitles` with either JSON `{ "audioUrl": "https://..." }` or `multipart/form-data` field `audio`
 
 ## Tests
 
