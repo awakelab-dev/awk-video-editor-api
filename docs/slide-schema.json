@@ -1,0 +1,245 @@
+{
+  "version": "1.0.0",
+  "templateId": "template-sql-fundamentos",
+  "metadata": {
+    "name": "SQL: fundamentos esenciales",
+    "resolution": {
+      "w": 1024,
+      "h": 576
+    },
+    "slideDurationSeconds": 12
+  },
+  "layoutCatalog": {
+    "title_1_paragraph": {
+      "description": "Titulo + un parrafo principal.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        { "key": "paragraph", "kind": "paragraph", "required": true }
+      ]
+    },
+    "title_2_paragraphs": {
+      "description": "Titulo + dos parrafos.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        {
+          "key": "paragraphs",
+          "kind": "paragraph",
+          "required": true,
+          "minItems": 2,
+          "maxItems": 2
+        }
+      ]
+    },
+    "title_paragraph_3_blocks": {
+      "description": "Titulo + parrafo + 3 bloques.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        { "key": "paragraph", "kind": "paragraph", "required": true },
+        {
+          "key": "blocks",
+          "kind": "block",
+          "required": true,
+          "minItems": 3,
+          "maxItems": 3
+        }
+      ]
+    },
+    "title_paragraph_4_blocks": {
+      "description": "Titulo + parrafo + 4 bloques.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        { "key": "paragraph", "kind": "paragraph", "required": true },
+        {
+          "key": "blocks",
+          "kind": "block",
+          "required": true,
+          "minItems": 4,
+          "maxItems": 4
+        }
+      ]
+    },
+    "title_paragraph_5_rows": {
+      "description": "Titulo + parrafo + 5 filas/resumenes.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        { "key": "paragraph", "kind": "paragraph", "required": true },
+        {
+          "key": "rows",
+          "kind": "row",
+          "required": true,
+          "minItems": 5,
+          "maxItems": 5
+        }
+      ]
+    },
+    "cover_title_subtitle_3_cards_2_notes": {
+      "description": "Portada: titulo, subtitulo, 3 tarjetas y 2 notas.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        { "key": "subtitle", "kind": "paragraph", "required": true },
+        {
+          "key": "cards",
+          "kind": "card",
+          "required": true,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        {
+          "key": "notes",
+          "kind": "paragraph",
+          "required": true,
+          "minItems": 2,
+          "maxItems": 2
+        }
+      ]
+    },
+    "section_number_title_paragraph_6_tags": {
+      "description": "Slide de seccion con numero grande, titulo, copy y 6 tags.",
+      "fields": [
+        { "key": "sectionNumber", "kind": "paragraph", "required": true },
+        { "key": "sectionLabel", "kind": "paragraph", "required": true },
+        { "key": "title", "kind": "paragraph", "required": true },
+        { "key": "paragraph", "kind": "paragraph", "required": true },
+        {
+          "key": "tags",
+          "kind": "tag",
+          "required": true,
+          "minItems": 6,
+          "maxItems": 6
+        }
+      ]
+    },
+    "title_subtitle_3_steps_side_paragraph": {
+      "description": "Titulo, subtitulo, 3 pasos y bloque lateral.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        { "key": "subtitle", "kind": "paragraph", "required": true },
+        {
+          "key": "steps",
+          "kind": "step",
+          "required": true,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        { "key": "sideParagraph", "kind": "paragraph", "required": true }
+      ]
+    },
+    "title_3_resource_cards": {
+      "description": "Titulo + 3 tarjetas de recursos.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        {
+          "key": "cards",
+          "kind": "card",
+          "required": true,
+          "minItems": 3,
+          "maxItems": 3
+        }
+      ]
+    },
+    "title_4_resource_cards": {
+      "description": "Titulo + 4 tarjetas de recursos.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        {
+          "key": "cards",
+          "kind": "card",
+          "required": true,
+          "minItems": 4,
+          "maxItems": 4
+        }
+      ]
+    },
+    "title_3_paragraphs_contact": {
+      "description": "Cierre: titulo + 3 parrafos y contacto.",
+      "fields": [
+        { "key": "title", "kind": "paragraph", "required": true },
+        {
+          "key": "paragraphs",
+          "kind": "paragraph",
+          "required": true,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        { "key": "contact", "kind": "paragraph", "required": true }
+      ]
+    }
+  },
+  "slides": [
+    {
+      "index": 0,
+      "id": "sql-cover",
+      "layout": "cover_title_subtitle_3_cards_2_notes"
+    },
+    {
+      "index": 1,
+      "id": "sql-section",
+      "layout": "section_number_title_paragraph_6_tags"
+    },
+    {
+      "index": 2,
+      "id": "sql-map",
+      "layout": "title_paragraph_3_blocks"
+    },
+    {
+      "index": 3,
+      "id": "sql-objectives",
+      "layout": "title_paragraph_4_blocks"
+    },
+    {
+      "index": 4,
+      "id": "sql-essentials",
+      "layout": "title_paragraph_4_blocks"
+    },
+    {
+      "index": 5,
+      "id": "sql-structure",
+      "layout": "title_paragraph_3_blocks"
+    },
+    {
+      "index": 6,
+      "id": "sql-visual",
+      "layout": "title_2_paragraphs"
+    },
+    {
+      "index": 7,
+      "id": "sql-key",
+      "layout": "title_2_paragraphs"
+    },
+    {
+      "index": 8,
+      "id": "sql-example",
+      "layout": "title_paragraph_3_blocks"
+    },
+    {
+      "index": 9,
+      "id": "sql-flow",
+      "layout": "title_paragraph_4_blocks"
+    },
+    {
+      "index": 10,
+      "id": "sql-practice",
+      "layout": "title_subtitle_3_steps_side_paragraph"
+    },
+    {
+      "index": 11,
+      "id": "sql-recap",
+      "layout": "title_3_resource_cards"
+    },
+    {
+      "index": 12,
+      "id": "sql-conclusions",
+      "layout": "title_paragraph_5_rows"
+    },
+    {
+      "index": 13,
+      "id": "sql-resources",
+      "layout": "title_4_resource_cards"
+    },
+    {
+      "index": 14,
+      "id": "sql-close",
+      "layout": "title_3_paragraphs_contact"
+    }
+  ]
+}
