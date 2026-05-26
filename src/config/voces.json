@@ -1,0 +1,38 @@
+{
+    "es": {
+        "female": {
+            "default": {
+                "name": "Spanish Female (Neutral)",
+                "voice_id": "XrExE9yKIg1WjnnlVkGX"
+            }
+        },
+        "male": {
+            "default": {
+                "name": "Spanish Male (Neutral)",
+                "voice_id": "JBFqnCBsd6RMkjVDRZzb"
+            }
+        }
+    },
+    "en": {
+        "female": {
+            "us": {
+                "name": "English Female (US)",
+                "voice_id": "FGY2WhTYpPnrIDTdsKH5"
+            },
+            "uk": {
+                "name": "English Female (UK)",
+                "voice_id": "Xb7hH8MSUJpSbSDYk0k2"
+            }
+        },
+        "male": {
+            "us": {
+                "name": "English Male (US)",
+                "voice_id": "CwhRBWXzGAHq8TQ4Fs17"
+            },
+            "uk": {
+                "name": "English Male (UK)",
+                "voice_id": "JBFqnCBsd6RMkjVDRZzb"
+            }
+        }
+    }
+}
