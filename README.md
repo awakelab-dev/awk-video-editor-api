@@ -33,7 +33,7 @@ Important values:
 - `PORT=4000`
 - `MONGODB_URI`
 - `MONGODB_DB_NAME`
-- `OPENAI_API_KEY` (optional, required for `/api/chat`)
+- `OPENAI_API_KEY` (optional, required for `/api/chat` and `/api/v1/slide-tracks`)
 - `PEXELS_API_KEY` (optional, required for `/api/images`)
 
 ## Local setup
@@ -47,6 +47,22 @@ npm run dev
 ### URLs
 - Health: `http://localhost:4000/health`
 - API base: `http://localhost:4000/api/v1`
+
+## AI slide tracks endpoint
+
+`POST /api/v1/slide-tracks`
+
+Body:
+
+\`\`\`json
+{
+  "text": "texto largo a resumir...",
+  "language": "es",
+  "maxSlides": 10
+}
+\`\`\`
+
+Returns `tracks` ready for the editor timeline (text, audio, media) following the SQL slide template sizing pattern.
 
 ## Tests
 
