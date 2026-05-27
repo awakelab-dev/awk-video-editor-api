@@ -2,19 +2,15 @@
 
 ## Recommendation
 
-Use Iconify as the first real icon provider for the internal video editor icon picker.
-
-Why Iconify:
-
-- It is designed around icon search/pickers and many icon sets.
-- It supports a public API and self-hosting.
-- It lets the backend return stable icon IDs instead of raw SVG in search results.
-- It has better coverage than a small local emoji catalog and avoids generic web scraping.
+Use Iconify as the first icon provider for the internal video editor icon picker. It supports search, stable icon IDs, public SVG URL rendering, and a broad catalog without returning raw SVG markup from this API.
 
 ## Endpoint
 
+All `/api` endpoints require a valid bearer JWT when `AUTH_REQUIRED=true`. Viewer, editor, and admin roles may use Iconify search.
+
 ```http
 GET /api/v1/icons?q=coffee&provider=iconify&limit=24&offset=0
+GET /api/v1/icons/iconify?q=lampara%20amarilla&color=ffcc00
 ```
 
 Query parameters:
@@ -22,10 +18,13 @@ Query parameters:
 | Parameter | Required | Default | Notes |
 |---|---:|---:|---|
 | `q` | no | empty | Search text, max 64 chars. Empty query returns curated default video-editor icons. |
-| `provider` | no | `iconify` | Only `iconify` is accepted in this spike. |
+| `provider` | no | `iconify` | Generic endpoint accepts `iconify` or `nounproject`; this document covers Iconify. |
 | `category` | no | empty | Filter for curated defaults: `media`, `editing`, `actions`, `status`, `objects`. |
 | `limit` | no | `24` | Integer 1-100. |
-| `offset` | no | `0` | Integer >= 0. |
+| `offset` | no | `0` | Integer 0-10000. Sent to Iconify as `start`. |
+| `color` | no | none | `#rgb`, `#rrggbb`, `rgb`, or `rrggbb`; appended to preview URLs as `color=%23{hex}`. |
+
+Before search, `q` is translated/normalized to English using Google Translate when configured, otherwise a deterministic local dictionary.
 
 Example response:
 
@@ -34,29 +33,25 @@ Example response:
   "success": true,
   "message": "Icons fetched successfully",
   "data": {
-    "query": "coffee",
+    "originalQuery": "lampara amarilla",
+    "translatedQuery": "yellow lamp",
     "provider": "iconify",
-    "category": null,
-    "categories": ["actions", "editing", "media", "objects", "status"],
-    "security": {
-      "svgReturnedInSearch": false,
-      "renderMode": "iconify-id"
-    },
     "source": "iconify-api",
     "items": [
       {
-        "id": "mdi:coffee",
+        "id": "mdi:lamp",
         "provider": "iconify",
-        "iconId": "mdi:coffee",
+        "iconId": "mdi:lamp",
         "prefix": "mdi",
-        "name": "coffee",
-        "label": "Coffee",
+        "name": "lamp",
+        "label": "Lamp",
         "category": "iconify",
-        "tags": ["mdi", "coffee"],
+        "tags": ["mdi", "lamp"],
         "license": null,
         "preview": {
-          "type": "iconify-id",
-          "value": "mdi:coffee"
+          "type": "svg-url",
+          "value": "mdi:lamp",
+          "url": "https://api.iconify.design/mdi/lamp.svg?color=%23ffcc00"
         }
       }
     ],
@@ -69,19 +64,17 @@ Example response:
 
 ## Security decisions
 
-The search endpoint returns **metadata only**. It intentionally does not return:
+The search endpoint returns metadata and a provider URL only. It intentionally does not return:
 
 - raw SVG
 - HTML
 - JSX/React component strings
 - arbitrary markup
 
-This reduces stored/reflected XSS risk. The frontend should render using a vetted Iconify renderer or a safe internal renderer from the returned `iconId`.
-
 Additional protections:
 
 - no user-controlled URL fetching; the backend only calls the fixed Iconify API host
-- strict validation for `q`, `provider`, `category`, `limit`, and `offset`
+- strict validation for `q`, `provider`, `category`, `limit`, `offset`, and `color`
 - reject markup-like input, double-encoded markup, JavaScript/data/vbscript protocols, bidi controls, and control chars
 - reject unsupported providers such as `web`, `internet`, or arbitrary remote SVG sources
 - sanitize upstream results by accepting only safe Iconify IDs matching `prefix:name`
@@ -89,7 +82,7 @@ Additional protections:
 
 ## Default icons
 
-When `q` is empty, the endpoint returns curated video-editor defaults from Material Design Icons IDs, such as:
+When `q` is empty or Iconify search fails, the endpoint returns curated Material Design Icons IDs useful in the video editor, including:
 
 - `mdi:movie-open`
 - `mdi:play`
@@ -113,6 +106,9 @@ When `q` is empty, the endpoint returns curated video-editor defaults from Mater
 - `mdi:close`
 - `mdi:heart`
 - `mdi:coffee`
+- `mdi:lamp`
+- `mdi:bicycle`
+- `mdi:brick`
 
 ## Custom icon upload
 
@@ -142,4 +138,4 @@ Generic remote SVG fetching is high-risk:
 - tracking/external references
 - unstable results
 
-Use Iconify first, then consider custom upload as a separate controlled feature.
+Use Iconify and Noun Project first, then consider custom upload as a separate controlled feature.
