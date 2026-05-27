@@ -9,6 +9,7 @@ import elementRoutes from './routes/elementRoutes'
 import imagesRoutes from './routes/images'
 import projectRoutes from './routes/projects'
 import projectSnapshotRoutes from './routes/projectSnapshot'
+import slideTracksRoutes from './routes/slideTracks'
 import usersRoutes from './routes/users'
 import aiImageRoutes from './routes/ai-image.routes'
 import ttsRoutes from './routes/tts'
@@ -26,6 +27,7 @@ app.use('/api/ai', aiImageRoutes)
 app.use('/api/v1/auth', authRateLimiter, authRoutes)
 app.use('/api/v1/users', usersRoutes)
 app.use('/api/v1', elementRoutes)
+app.use('/api/v1', slideTracksRoutes)
 app.use('/api/v1/projects', projectRoutes)
 app.use('/api/v1/projects/:projectId/editor-state', editorStateRoutes)
 app.use('/api/v1/projects/:projectId/snapshot', projectSnapshotRoutes)
