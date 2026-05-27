@@ -71,8 +71,12 @@ test('POST /api/v1/slide-tracks returns generated tracks', async () => {
 
   const mediaTrack = response.body.data.tracks.find((track) => track.id === 'track_media')
   assert.ok(mediaTrack)
-  assert.equal(mediaTrack.elements.length, 10)
+  assert.equal(mediaTrack.elements.length, 16)
   assert.equal(mediaTrack.elements.some((element) => element.id.includes('takeaway-card')), true)
+  assert.equal(mediaTrack.elements.some((element) => element.id.includes('decor-left')), true)
+  assert.equal(mediaTrack.elements.some((element) => element.id.includes('decor-right')), true)
+  assert.equal(mediaTrack.elements.some((element) => element.id.includes('decor-bottom')), true)
+  assert.equal(mediaTrack.elements.some((element) => element.id.includes('bg') && element.fillColor === '#fbfffe'), true)
 })
 
 test('POST /api/v1/slide-tracks validates payload', async () => {

@@ -168,11 +168,49 @@ function buildMediaBackground(slideIndex: number): ShapeElement {
     height: RESOLUTION.h,
     rotation: 0,
     shapeType: 'rectangle',
-    fillColor: slideIndex % 2 === 0 ? '#fbfffe' : '#f4fcfb',
+    fillColor: '#fbfffe',
     strokeColor: '#b7f3ea',
     strokeWidth: 1,
     cornerRadius: 14
   }
+}
+
+function buildDecorativeBackgroundShapes(slideIndex: number): ShapeElement[] {
+  return [
+    buildShapeElement(slideIndex, 'decor-left', {
+      name: `Decoracion izquierda slide ${slideIndex + 1}`,
+      x: -130,
+      y: 284,
+      width: 320,
+      height: 280,
+      fillColor: 'rgba(225, 247, 244, 0.78)',
+      strokeColor: 'transparent',
+      strokeWidth: 0,
+      cornerRadius: 999
+    }),
+    buildShapeElement(slideIndex, 'decor-right', {
+      name: `Decoracion derecha slide ${slideIndex + 1}`,
+      x: 824,
+      y: 26,
+      width: 210,
+      height: 190,
+      fillColor: 'rgba(211, 246, 241, 0.64)',
+      strokeColor: 'transparent',
+      strokeWidth: 0,
+      cornerRadius: 999
+    }),
+    buildShapeElement(slideIndex, 'decor-bottom', {
+      name: `Decoracion inferior slide ${slideIndex + 1}`,
+      x: 470,
+      y: 430,
+      width: 170,
+      height: 160,
+      fillColor: 'rgba(252, 244, 229, 0.82)',
+      strokeColor: 'transparent',
+      strokeWidth: 0,
+      cornerRadius: 999
+    })
+  ]
 }
 
 function normalizeSlideCopy(slide: SlideCopy): SlideCopy {
@@ -319,6 +357,7 @@ function buildTracks(slides: SlideCopy[]): Track[] {
 
     mediaElements.push(
       buildMediaBackground(slideIndex),
+      ...buildDecorativeBackgroundShapes(slideIndex),
       buildShapeElement(slideIndex, 'section-card', {
         name: `Card seccion slide ${slideIndex + 1}`,
         x: 44,
