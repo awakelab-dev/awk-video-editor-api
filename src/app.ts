@@ -9,6 +9,7 @@ import elementRoutes from './routes/elementRoutes'
 import imagesRoutes from './routes/images'
 import projectRoutes from './routes/projects'
 import projectSnapshotRoutes from './routes/projectSnapshot'
+import summarizeRoutes from './routes/summarize'
 import usersRoutes from './routes/users'
 
 const app = express()
@@ -19,6 +20,7 @@ app.use(express.json({ limit: '2mb' }))
 
 app.use('/api', chatRoutes)
 app.use('/api', imagesRoutes)
+app.use('/api', summarizeRoutes)
 app.use('/api/v1/auth', authRateLimiter, authRoutes)
 app.use('/api/v1/users', usersRoutes)
 app.use('/api/v1', elementRoutes)

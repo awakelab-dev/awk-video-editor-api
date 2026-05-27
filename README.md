@@ -33,7 +33,7 @@ Important values:
 - `PORT=4000`
 - `MONGODB_URI`
 - `MONGODB_DB_NAME`
-- `OPENAI_API_KEY` (optional, required for `/api/chat`)
+- `OPENAI_API_KEY` (required for `/api/summarize`, optional for `/api/chat`)
 - `PEXELS_API_KEY` (optional, required for `/api/images`)
 
 ## Local setup
@@ -47,6 +47,7 @@ npm run dev
 ### URLs
 - Health: `http://localhost:4000/health`
 - API base: `http://localhost:4000/api/v1`
+- Summarize: `POST http://localhost:4000/api/summarize`
 
 ## Tests
 
