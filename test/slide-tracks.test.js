@@ -51,8 +51,8 @@ test("POST /api/v1/slide-tracks returns generated tracks", async () => {
         sourceNote: "Segundo bloque del documento original.",
       },
     ],
-    async (payload) => {
-      persistedPayload = payload;
+    async (generated) => {
+      persistedPayload = generated;
       return { projectId: "proj_generated_001" };
     },
   );
@@ -73,8 +73,8 @@ test("POST /api/v1/slide-tracks returns generated tracks", async () => {
   assert.equal(Array.isArray(response.body.data.tracks), true);
   assert.equal(response.body.data.tracks.length, 3);
   assert.ok(persistedPayload);
-  assert.equal(persistedPayload.generated.durationSeconds, 24);
-  assert.equal(persistedPayload.generated.tracks.length, 3);
+  assert.equal(persistedPayload.durationSeconds, 24);
+  assert.equal(persistedPayload.tracks.length, 3);
 
   const textTrack = response.body.data.tracks.find(
     (track) => track.id === "track_text",
