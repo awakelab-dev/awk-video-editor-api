@@ -33,20 +33,23 @@ Important values:
 - `PORT=4000`
 - `MONGODB_URI`
 - `MONGODB_DB_NAME`
-- `OPENAI_API_KEY` (optional, required for `/api/chat` and `/api/v1/slide-tracks`)
+- `OPENAI_API_KEY` (required for `/api/summarize` and `/api/v1/slide-tracks`, optional for `/api/chat`)
 - `PEXELS_API_KEY` (optional, required for `/api/images`)
 
 ## Local setup
 
 ### Install
+
 \`\`\`bash
 npm install
 npm run dev
 \`\`\`
 
 ### URLs
+
 - Health: `http://localhost:4000/health`
 - API base: `http://localhost:4000/api/v1`
+- Summarize: `POST http://localhost:4000/api/summarize`
 
 ## AI slide tracks endpoint
 
@@ -56,9 +59,9 @@ Body:
 
 \`\`\`json
 {
-  "text": "texto largo a resumir...",
-  "language": "es",
-  "maxSlides": 10
+"text": "texto largo a resumir...",
+"language": "es",
+"maxSlides": 10
 }
 \`\`\`
 
