@@ -66,8 +66,8 @@ function hasTextValue(element: unknown): element is { text: string } {
   );
 }
 
-export async function persistGeneratedProject(
-  generated: GeneratedSlideTracksResult,
+async function insertProjectDocument(
+  project: ProjectDocument,
 ): Promise<{ projectId: string }> {
   if (!isMongoConnected()) {
     throw new Error("MongoDB is not connected");
@@ -80,6 +80,31 @@ export async function persistGeneratedProject(
 
   const projectsCollection: any = db.collection("projects");
   const editorStatesCollection: any = db.collection("editor_states");
+  const now = new Date().toISOString();
+
+  await projectsCollection.insertOne(project);
+
+  const initialEditorState = buildInitialEditorState(project);
+  await editorStatesCollection.updateOne(
+    { projectId: project.id },
+    {
+      $set: {
+        ...initialEditorState,
+        revision: 0,
+        sessionId: project.sessionId ?? `session_${project.id}`,
+        updatedBy: "system",
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true },
+  );
+
+  return { projectId: project.id };
+}
+
+export async function persistGeneratedProject(
+  generated: GeneratedSlideTracksResult,
+): Promise<{ projectId: string }> {
   const projectId = generateProjectId();
   const now = new Date().toISOString();
   const firstTextElement = generated.tracks.find(
@@ -113,22 +138,11 @@ export async function persistGeneratedProject(
     updatedAt: now,
   };
 
-  await projectsCollection.insertOne(project);
+  return insertProjectDocument(project);
+}
 
-  const initialEditorState = buildInitialEditorState(project);
-  await editorStatesCollection.updateOne(
-    { projectId },
-    {
-      $set: {
-        ...initialEditorState,
-        revision: 0,
-        sessionId: `session_${projectId}`,
-        updatedBy: "system",
-      },
-      $setOnInsert: { createdAt: now },
-    },
-    { upsert: true },
-  );
-
-  return { projectId };
+export async function persistProjectDocument(
+  project: ProjectDocument,
+): Promise<{ projectId: string }> {
+  return insertProjectDocument(project);
 }

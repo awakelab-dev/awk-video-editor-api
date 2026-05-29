@@ -50,6 +50,7 @@ npm run dev
 - Health: `http://localhost:4000/health`
 - API base: `http://localhost:4000/api/v1`
 - Summarize: `POST http://localhost:4000/api/summarize`
+- Summarize to project: `POST http://localhost:4000/api/v1/summarize-to-project`
 
 ## AI slide tracks endpoint
 
@@ -66,6 +67,14 @@ Body:
 \`\`\`
 
 Returns `tracks` ready for the editor timeline (text, audio, media) following the SQL slide template sizing pattern.
+
+## Summarize to project endpoint
+
+`POST /api/v1/summarize-to-project`
+
+Body can be JSON with `text` or `multipart/form-data` with `file`.
+
+Returns the generated `projectId` plus the intermediate `summary`, `slides`, `tracks`, and `durationSeconds`.
 
 ## Tests
 

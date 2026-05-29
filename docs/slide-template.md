@@ -54,7 +54,8 @@ function createTextElement(
   > &
     Partial<TextElement>,
 ): TextElement {
-  const { id, name, text, startTime, duration, ...rest } = overrides;
+  const { id, name, text, startTime, duration, maxHeight, ...rest } = overrides;
+  const resolvedHeight = rest.height ?? 160;
 
   return {
     id,
@@ -62,12 +63,13 @@ function createTextElement(
     name,
     startTime,
     duration,
+    maxHeight: maxHeight ?? resolvedHeight,
     opacity: 1,
     effects: [],
     x: 180,
     y: 160,
     width: 1560,
-    height: 160,
+    height: resolvedHeight,
     rotation: 0,
     text,
     fontFamily: "Inter",
